@@ -14,12 +14,18 @@ importers:
       next:
         specifier: 16.1.1
         version: 16.1.1(@babel/core@7.28.5)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      openai:
+        specifier: ^6.15.0
+        version: 6.15.0(ws@8.18.3)(zod@4.3.4)
       react:
         specifier: 19.2.3
         version: 19.2.3
       react-dom:
         specifier: 19.2.3
         version: 19.2.3(react@19.2.3)
+      zod:
+        specifier: ^4.3.4
+        version: 4.3.4
     devDependencies:
       '@tailwindcss/postcss':
         specifier: ^4
@@ -1584,6 +1590,18 @@ packages:
     resolution: {integrity: sha512-gXah6aZrcUxjWg2zR2MwouP2eHlCBzdV4pygudehaKXSGW4v2AsRQUK+lwwXhii6KFZcunEnmSUoYp5CXibxtA==}
     engines: {node: '>= 0.4'}
 
+  openai@6.15.0:
+    resolution: {integrity: sha512-F1Lvs5BoVvmZtzkUEVyh8mDQPPFolq4F+xdsx/DO8Hee8YF3IGAlZqUIsF+DVGhqf4aU0a3bTghsxB6OIsRy1g==}
+    hasBin: true
+    peerDependencies:
+      ws: ^8.18.0
+      zod: ^3.25 || ^4.0
+    peerDependenciesMeta:
+      ws:
+        optional: true
+      zod:
+        optional: true
+
   optionator@0.9.4:
     resolution: {integrity: sha512-6IpQ7mKUxRcZNLIObR0hz7lxsapSSIYNZJwXPGeF0mTVqGKFIXj1DQcMoT22S3ROcLyY/rz0PWaWZ9ayWmad9g==}
     engines: {node: '>= 0.8.0'}
@@ -1950,8 +1968,8 @@ packages:
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
 
-  zod@4.3.2:
-    resolution: {integrity: sha512-b8L8yn4rIVfiXyHAmnr52/ZEpDumlT0bmxiq3Ws1ybrinhflGpt12Hvv54kYnEsGPRs6o/Ka3/ppA2OWY21IVg==}
+  zod@4.3.4:
+    resolution: {integrity: sha512-Zw/uYiiyF6pUT1qmKbZziChgNPRu+ZRneAsMUDU6IwmXdWt5JwcUfy2bvLOCUtz5UniaN/Zx5aFttZYbYc7O/A==}
 
 snapshots:
 
@@ -3036,8 +3054,8 @@ snapshots:
       '@babel/parser': 7.28.5
       eslint: 9.39.2(jiti@2.6.1)
       hermes-parser: 0.25.1
-      zod: 4.3.2
-      zod-validation-error: 4.0.2(zod@4.3.2)
+      zod: 4.3.4
+      zod-validation-error: 4.0.2(zod@4.3.4)
     transitivePeerDependencies:
       - supports-color
 
@@ -3621,6 +3639,11 @@ snapshots:
       define-properties: 1.2.1
       es-object-atoms: 1.1.1
 
+  openai@6.15.0(ws@8.18.3)(zod@4.3.4):
+    optionalDependencies:
+      ws: 8.18.3
+      zod: 4.3.4
+
   optionator@0.9.4:
     dependencies:
       deep-is: 0.1.4
@@ -4098,8 +4121,8 @@ snapshots:
 
   yocto-queue@0.1.0: {}
 
-  zod-validation-error@4.0.2(zod@4.3.2):
+  zod-validation-error@4.0.2(zod@4.3.4):
     dependencies:
-      zod: 4.3.2
+      zod: 4.3.4
 
-  zod@4.3.2: {}
+  zod@4.3.4: {}
