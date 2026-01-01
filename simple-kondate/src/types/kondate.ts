@@ -20,11 +20,11 @@ export type KondateRow = {
   meal_date: string;  
 };
 
-export type AddKondateInput = {
-  title: string;
-  category: Category;
-  meal_date: string; // "YYYY-MM-DD"
-};
+//export type AddKondateInput = {
+ // title: string;
+ // category: Category;
+ // meal_date: string; // "YYYY-MM-DD"
+//};
 /**
  * UIやバリデーションで使う「カテゴリ一覧」
  * as const を付けると「読み取り専用の固定配列」になる
