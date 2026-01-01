@@ -37,7 +37,15 @@ export async function apiGetKondates(): Promise<KondateRow[]> {
 }
 
 /** POST /api/kondates */
-export async function apiAddKondate(input: { title: string; category: Category }): Promise<KondateRow> {
+/**
+ * 新規追加API
+ * - meal_date は "YYYY-MM-DD" を想定（HTML date input の値）
+ */
+export async function apiAddKondate(input: {
+  title: string;
+  category: Category;
+  meal_date: string; // ★追加
+}): Promise<KondateRow> {
   const res = await fetch("/api/kondates", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -45,14 +53,13 @@ export async function apiAddKondate(input: { title: string; category: Category }
   });
 
   if (!res.ok) {
-    const body = (await readJsonOrEmpty<ApiErrorResponse>(res)) as Partial<ApiErrorResponse>;
-    throw new Error(body.message ?? "API error (POST /api/kondates)");
+    const text = await res.text().catch(() => "");
+    throw new Error(`POST /api/kondates failed: ${res.status} ${text}`);
   }
 
-  const body = (await res.json()) as PostKondatesResponse;
-  return body.kondate;
+  const json = (await res.json()) as { kondate: KondateRow };
+  return json.kondate;
 }
-
 /** DELETE /api/kondates/:id */
 export async function apiDeleteKondate(id: number): Promise<void> {
   const res = await fetch(`/api/kondates/${id}`, { method: "DELETE" });
