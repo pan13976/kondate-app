@@ -1,0 +1,67 @@
+// src/lib/kondatesApi.ts
+
+import type {
+  ApiErrorResponse,
+  DeleteKondatesResponse,
+  GetKondatesResponse,
+  KondateRow,
+  PostKondatesResponse,
+  Category,
+} from "../types/kondate";
+
+/**
+ * API呼び出しはここに集約する。
+ * - page.tsx や hook から fetch を消せる
+ * - エラーハンドリングの形を統一できる
+ *
+ * ポイント：
+ * - 失敗時は throw する（呼び出し側で try/catch しやすい）
+ * - 成功時の型を固定する（レスポンス崩れを検知しやすい）
+ */
+async function readJsonOrEmpty<T>(res: Response): Promise<T | {}> {
+  // JSONが返らないケースでも落ちないようにする保険
+  return (await res.json().catch(() => ({}))) as T | {};
+}
+
+/** GET /api/kondates */
+export async function apiGetKondates(): Promise<KondateRow[]> {
+  const res = await fetch("/api/kondates", { cache: "no-store" });
+
+  if (!res.ok) {
+    const body = (await readJsonOrEmpty<ApiErrorResponse>(res)) as Partial<ApiErrorResponse>;
+    throw new Error(body.message ?? "API error (GET /api/kondates)");
+  }
+
+  const body = (await res.json()) as GetKondatesResponse;
+  return body.kondates;
+}
+
+/** POST /api/kondates */
+export async function apiAddKondate(input: { title: string; category: Category }): Promise<KondateRow> {
+  const res = await fetch("/api/kondates", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+
+  if (!res.ok) {
+    const body = (await readJsonOrEmpty<ApiErrorResponse>(res)) as Partial<ApiErrorResponse>;
+    throw new Error(body.message ?? "API error (POST /api/kondates)");
+  }
+
+  const body = (await res.json()) as PostKondatesResponse;
+  return body.kondate;
+}
+
+/** DELETE /api/kondates/:id */
+export async function apiDeleteKondate(id: number): Promise<void> {
+  const res = await fetch(`/api/kondates/${id}`, { method: "DELETE" });
+
+  if (!res.ok) {
+    const body = (await readJsonOrEmpty<ApiErrorResponse>(res)) as Partial<ApiErrorResponse>;
+    throw new Error(body.message ?? "API error (DELETE /api/kondates/:id)");
+  }
+
+  // 返却は { ok: true } だが、呼び出し側は結果を使わないので void でOK
+  await res.json().catch(() => ({} as DeleteKondatesResponse));
+}
