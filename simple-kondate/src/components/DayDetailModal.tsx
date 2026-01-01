@@ -4,11 +4,12 @@
 import { useEffect, useMemo, useState } from "react";
 import type { KondateRow } from "../types/kondate";
 import { apiCreateKondate, apiUpdateKondate } from "../lib/kondatesApi";
+import { apiFetchIngredients, type IngredientMaster } from "../lib/ingredientsApi";
 
 /**
- * 材料（分量）1行分の型
- * - name: 食材名（例：鶏もも）
- * - amount: 分量（例：200g / 1/2丁 / 大さじ1）
+ * 1行分の材料（分量）
+ * - name: 画面上で表示する名前（いまは日本語でOK）
+ * - amount: 分量（200g / 大さじ1 など）
  */
 type Ingredient = {
   name: string;
@@ -22,28 +23,37 @@ type Props = {
   onClose: () => void;
 
   /**
-   * 保存後に親の state(kondates) を更新するためのコールバック
-   * - 追加のとき：新規rowを親に足す
-   * - 更新のとき：該当rowを差し替える
+   * 保存後、親の kondates state を即更新するために呼ぶ
+   * - idが同じなら置換
+   * - 無ければ追加
    */
   onUpsert: (row: KondateRow) => void;
 };
 
+/**
+ * 献立カテゴリ（あなたのアプリ仕様）
+ */
 const CATS = ["朝", "昼", "夜", "弁当"] as const;
-type Cat = (typeof CATS)[number];
+type KondateCat = (typeof CATS)[number];
+
+/**
+ * 食材カテゴリ（あなたが追加したい分類）
+ * 必要に応じて増やしてOK
+ */
+const ING_CATEGORIES = ["肉", "魚", "野菜", "卵・乳", "豆", "穀物", "調味料", "その他"] as const;
+type IngCategory = (typeof ING_CATEGORIES)[number];
 
 export default function DayDetailModal({ open, ymd, kondates, onClose, onUpsert }: Props) {
   /**
-   * ★重要：Hooksは「条件分岐の前」に必ず呼ぶ
-   * open/ymd が無いときも hooks は動くようにするため、
-   * isOpen と safeYmd を作ってガードする。
+   * ✅ Hooks は必ず最初に呼ぶ（条件分岐の前にreturnしない）
+   * open/ymd がない時も hooks の順序が崩れないように
+   * isOpen と safeYmd を作って後段でガードする。
    */
   const isOpen = open && !!ymd;
   const safeYmd = ymd ?? "";
 
   /**
-   * 選択日のデータだけを抽出
-   * - isOpen=false の時は空配列にしておく（hooks順序を守るため）
+   * 選択日の献立だけ抽出（openじゃない時は空配列）
    */
   const rowsOfDay = useMemo(() => {
     if (!isOpen) return [];
@@ -51,7 +61,8 @@ export default function DayDetailModal({ open, ymd, kondates, onClose, onUpsert 
   }, [isOpen, kondates, safeYmd]);
 
   /**
-   * category -> row のMapを作る（朝/昼/夜/弁当の既存データを即参照できる）
+   * category(朝/昼/夜/弁当) -> row のMap
+   * 既存データをすぐ参照できる
    */
   const rowByCat = useMemo(() => {
     const map = new Map<string, KondateRow>();
@@ -59,56 +70,94 @@ export default function DayDetailModal({ open, ymd, kondates, onClose, onUpsert 
     return map;
   }, [rowsOfDay]);
 
+  // ----------------------------
+  // 画面入力 state
+  // ----------------------------
+
   /**
-   * 入力中の献立名（カテゴリごと）
+   * 献立名（カテゴリごと）
    * 例：draftTitle["夜"] = "厚揚げ麻婆丼"
    */
   const [draftTitle, setDraftTitle] = useState<Record<string, string>>({});
 
   /**
-   * 入力中の材料（カテゴリごと）
+   * 材料（カテゴリごと）
    * 例：draftIng["夜"] = [{name:"鶏もも", amount:"200g"}]
    */
   const [draftIng, setDraftIng] = useState<Record<string, Ingredient[]>>({});
 
+  /**
+   * 食材マスタ（DB: ingredients_master）を保持
+   */
+  const [masterItems, setMasterItems] = useState<IngredientMaster[]>([]);
+  const [masterLoading, setMasterLoading] = useState(false);
+  const [masterError, setMasterError] = useState("");
+
+  /**
+   * 「材料行ごとの食材カテゴリ」を記憶する
+   * - キーは `${kondateCat}-${rowIndex}` にして一意にする
+   * - 例： "夜-0" -> "肉"
+   *
+   * ※ 今はDB保存しない（UI補助）
+   *    将来、食材IDを保存するようにすると精度が上がる
+   */
+  const [ingCategoryByRowKey, setIngCategoryByRowKey] = useState<Record<string, IngCategory>>({});
+
   // 保存中フラグ（連打防止）
   const [saving, setSaving] = useState(false);
 
-  // 画面下に出すメッセージ
+  // 画面に表示するメッセージ
   const [msg, setMsg] = useState("");
 
   /**
-   * モーダルを開いた（or 日付が切り替わった）タイミングで
-   * 既存値をフォームに流し込む。
-   *
-   * - 既存 row があればその値を入れる
-   * - 無ければ空文字/空配列にする（未登録カテゴリ）
+   * モーダルを開いたタイミングで
+   * 1) 既存の献立/材料をフォームへ流し込み
+   * 2) 食材マスタを取得（初回 or 開くたび、どちらでもOK）
    */
   useEffect(() => {
     if (!isOpen) return;
 
+    // 1) 既存値をフォームへセット
     const initTitle: Record<string, string> = {};
     const initIng: Record<string, Ingredient[]> = {};
+    const initRowCat: Record<string, IngCategory> = {};
 
     CATS.forEach((cat) => {
       const row = rowByCat.get(cat);
 
       initTitle[cat] = row?.title ?? "";
 
-      // ingredients はDBでは [] default にしている想定
-      // ただし、型や過去データで undefined の可能性もあるので ?? [] で安全にする
       const ings = (row as any)?.ingredients ?? [];
       initIng[cat] = Array.isArray(ings) ? (ings as Ingredient[]) : [];
+
+      // 行ごとのカテゴリは「最初はその他」でOK（推測したくなったら後で）
+      initIng[cat].forEach((_, idx) => {
+        initRowCat[`${cat}-${idx}`] = "その他";
+      });
     });
 
     setDraftTitle(initTitle);
     setDraftIng(initIng);
+    setIngCategoryByRowKey(initRowCat);
     setMsg("");
+
+    // 2) 食材マスタ取得（全件）
+    (async () => {
+      try {
+        setMasterLoading(true);
+        setMasterError("");
+        const items = await apiFetchIngredients(); // category指定なし=全件
+        setMasterItems(items);
+      } catch (e) {
+        setMasterError(e instanceof Error ? e.message : "食材マスタ取得に失敗しました");
+      } finally {
+        setMasterLoading(false);
+      }
+    })();
   }, [isOpen, safeYmd, rowByCat]);
 
   /**
-   * ここで return null するのはOK（hooksの後ならOK）
-   * open=false の時は描画しない
+   * ✅ Hooksの後なら return null OK
    */
   if (!isOpen) return null;
 
@@ -116,16 +165,27 @@ export default function DayDetailModal({ open, ymd, kondates, onClose, onUpsert 
   // 材料編集用の操作関数
   // ----------------------------
 
-  // 材料行を追加
-  const addIngRow = (cat: Cat) => {
+  /**
+   * 材料行を追加
+   */
+  const addIngRow = (cat: KondateCat) => {
     setDraftIng((p) => ({
       ...p,
       [cat]: [...(p[cat] ?? []), { name: "", amount: "" }],
     }));
+
+    // 追加した行のカテゴリはとりあえず "その他"
+    const nextIndex = (draftIng[cat]?.length ?? 0);
+    setIngCategoryByRowKey((p) => ({
+      ...p,
+      [`${cat}-${nextIndex}`]: "その他",
+    }));
   };
 
-  // 材料行を更新（name/amount）
-  const updateIngRow = (cat: Cat, idx: number, key: "name" | "amount", value: string) => {
+  /**
+   * 材料行を更新（name or amount）
+   */
+  const updateIngRow = (cat: KondateCat, idx: number, key: "name" | "amount", value: string) => {
     setDraftIng((p) => {
       const arr = [...(p[cat] ?? [])];
       const old = arr[idx] ?? { name: "", amount: "" };
@@ -134,30 +194,35 @@ export default function DayDetailModal({ open, ymd, kondates, onClose, onUpsert 
     });
   };
 
-  // 材料行を削除
-  const removeIngRow = (cat: Cat, idx: number) => {
+  /**
+   * 材料行を削除
+   */
+  const removeIngRow = (cat: KondateCat, idx: number) => {
     setDraftIng((p) => {
       const arr = [...(p[cat] ?? [])];
       arr.splice(idx, 1);
       return { ...p, [cat]: arr };
     });
+
+    // ここは“ざっくり”でOK：削除後の行番号ズレを完全追従させたいなら後で改善する
+    // まずはUIが使えることを優先。
   };
 
   /**
-   * 1カテゴリ分を保存（朝/昼/夜/弁当）
-   * - 既にrowがあれば UPDATE
+   * 1カテゴリ分（朝/昼/夜/弁当）を保存
+   * - 既存rowがあれば UPDATE
    * - 無ければ CREATE
    */
-  const saveOne = async (cat: Cat) => {
+  const saveOne = async (cat: KondateCat) => {
     const title = (draftTitle[cat] ?? "").trim();
 
-    // タイトルは必須（空は保存しない）
+    // タイトルは必須（空なら保存しない）
     if (!title) {
       setMsg(`${cat}：献立名を入れてね`);
       return;
     }
 
-    // 材料は「空行」を落として保存する
+    // 材料の空行は落として保存
     const ingredients = (draftIng[cat] ?? [])
       .map((x) => ({ name: (x.name ?? "").trim(), amount: (x.amount ?? "").trim() }))
       .filter((x) => x.name !== "" || x.amount !== "");
@@ -168,7 +233,6 @@ export default function DayDetailModal({ open, ymd, kondates, onClose, onUpsert 
 
       const existing = rowByCat.get(cat);
 
-      // 既存があれば更新、無ければ新規作成
       const saved: KondateRow = existing
         ? await apiUpdateKondate(existing.id, { title, ingredients })
         : await apiCreateKondate({
@@ -178,7 +242,7 @@ export default function DayDetailModal({ open, ymd, kondates, onClose, onUpsert 
             ingredients,
           });
 
-      // 親のstateに反映（週タイルや表示が即更新される）
+      // 親のstateへ反映 → 週タイルも即更新される
       onUpsert(saved);
 
       setMsg(`${cat}：保存しました`);
@@ -189,6 +253,9 @@ export default function DayDetailModal({ open, ymd, kondates, onClose, onUpsert 
     }
   };
 
+  // ----------------------------
+  // 画面
+  // ----------------------------
   return (
     <div
       onClick={onClose}
@@ -207,14 +274,14 @@ export default function DayDetailModal({ open, ymd, kondates, onClose, onUpsert 
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: "min(760px, 100%)",
+          width: "min(840px, 100%)",
           background: "white",
           borderRadius: 12,
           padding: 16,
           boxShadow: "0 16px 40px rgba(0,0,0,0.18)",
         }}
       >
-        {/* ヘッダ */}
+        {/* ヘッダー */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <div style={{ fontWeight: 800 }}>{safeYmd} の献立（追加・編集）</div>
           <button onClick={onClose} style={{ padding: "6px 10px" }}>
@@ -222,7 +289,7 @@ export default function DayDetailModal({ open, ymd, kondates, onClose, onUpsert 
           </button>
         </div>
 
-        {/* 参考：現在登録されている一覧を軽く表示 */}
+        {/* 参考：現在登録されている内容（軽く表示） */}
         <div style={{ marginBottom: 12, color: "#666", fontSize: 12 }}>
           現在の登録：
           {rowsOfDay.length === 0 ? (
@@ -236,6 +303,12 @@ export default function DayDetailModal({ open, ymd, kondates, onClose, onUpsert 
               ))}
             </ul>
           )}
+        </div>
+
+        {/* 食材マスタの状態 */}
+        <div style={{ marginBottom: 12, fontSize: 12, color: "#666" }}>
+          食材候補：{masterLoading ? "読み込み中..." : `${masterItems.length}件`}
+          {masterError && <span style={{ color: "crimson" }}>（{masterError}）</span>}
         </div>
 
         {/* カテゴリごとの編集ブロック */}
@@ -253,6 +326,7 @@ export default function DayDetailModal({ open, ymd, kondates, onClose, onUpsert 
                   background: "#fff",
                 }}
               >
+                {/* 見出し＋保存 */}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
                   <div style={{ fontWeight: 800 }}>{cat}</div>
 
@@ -277,7 +351,7 @@ export default function DayDetailModal({ open, ymd, kondates, onClose, onUpsert 
                   />
                 </div>
 
-                {/* 材料 */}
+                {/* 材料（分量） */}
                 <div style={{ marginTop: 12 }}>
                   <div style={{ fontSize: 12, color: "#666", marginBottom: 6 }}>材料（分量）</div>
 
@@ -287,40 +361,107 @@ export default function DayDetailModal({ open, ymd, kondates, onClose, onUpsert 
                     </div>
                   )}
 
-                  {ings.map((ing, idx) => (
-                    <div
-                      key={idx}
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr 1fr auto",
-                        gap: 8,
-                        marginBottom: 6,
-                        alignItems: "center",
-                      }}
-                    >
-                      <input
-                        value={ing.name}
-                        onChange={(e) => updateIngRow(cat, idx, "name", e.target.value)}
-                        placeholder="例：鶏もも"
-                        disabled={saving}
-                        style={{ padding: 8 }}
-                      />
-                      <input
-                        value={ing.amount}
-                        onChange={(e) => updateIngRow(cat, idx, "amount", e.target.value)}
-                        placeholder="例：200g / 1/2丁 / 大さじ1"
-                        disabled={saving}
-                        style={{ padding: 8 }}
-                      />
-                      <button
-                        onClick={() => removeIngRow(cat, idx)}
-                        disabled={saving}
-                        style={{ padding: "8px 10px", cursor: saving ? "not-allowed" : "pointer" }}
+                  {ings.map((ing, idx) => {
+                    // 行ごとのカテゴリを取得（無ければその他）
+                    const rowKey = `${cat}-${idx}`;
+                    const rowCategory = ingCategoryByRowKey[rowKey] ?? "その他";
+
+                    // 選択カテゴリに属する候補だけ絞り込み
+                    const options = masterItems.filter((m) => m.category === rowCategory);
+
+                    return (
+                      <div
+                        key={idx}
+                        style={{
+                          border: "1px solid #eee",
+                          borderRadius: 10,
+                          padding: 10,
+                          marginBottom: 8,
+                          background: "#fff",
+                        }}
                       >
-                        削除
-                      </button>
-                    </div>
-                  ))}
+                        {/* ① カテゴリ選択 + ② 食材選択 + 削除 */}
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: 8,
+                            flexWrap: "wrap",
+                            alignItems: "center",
+                            marginBottom: 8,
+                          }}
+                        >
+                          <div style={{ fontSize: 12, color: "#666", width: 64 }}>カテゴリ</div>
+
+                          <select
+                            value={rowCategory}
+                            onChange={(e) =>
+                              setIngCategoryByRowKey((p) => ({
+                                ...p,
+                                [rowKey]: e.target.value as IngCategory,
+                              }))
+                            }
+                            disabled={saving || masterLoading}
+                            style={{ padding: 8 }}
+                          >
+                            {ING_CATEGORIES.map((c) => (
+                              <option key={c} value={c}>
+                                {c}
+                              </option>
+                            ))}
+                          </select>
+
+                          {/* 食材選択：選ぶと name に反映 */}
+                          <select
+                            value="" // 毎回未選択にして「選んだら反映」する方式
+                            onChange={(e) => {
+                              const pickedName = e.target.value;
+                              if (!pickedName) return;
+                              updateIngRow(cat, idx, "name", pickedName);
+                            }}
+                            disabled={saving || masterLoading || options.length === 0}
+                            style={{ padding: 8 }}
+                          >
+                            <option value="">{options.length ? "食材を選ぶ" : "候補なし"}</option>
+                            {options.map((m) => (
+                              <option key={m.id} value={m.name_ja}>
+                                {m.name_ja}
+                              </option>
+                            ))}
+                          </select>
+
+                          <button
+                            onClick={() => removeIngRow(cat, idx)}
+                            disabled={saving}
+                            style={{ padding: "8px 10px", cursor: saving ? "not-allowed" : "pointer" }}
+                          >
+                            削除
+                          </button>
+                        </div>
+
+                        {/* ③ 手入力欄（マスタに無い食材の“逃げ道”として残す） */}
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                          <input
+                            value={ing.name}
+                            onChange={(e) => updateIngRow(cat, idx, "name", e.target.value)}
+                            placeholder="例：鶏もも"
+                            disabled={saving}
+                            style={{ padding: 8 }}
+                          />
+                          <input
+                            value={ing.amount}
+                            onChange={(e) => updateIngRow(cat, idx, "amount", e.target.value)}
+                            placeholder="例：200g / 大さじ1"
+                            disabled={saving}
+                            style={{ padding: 8 }}
+                          />
+                        </div>
+
+                        <div style={{ marginTop: 6, fontSize: 11, color: "#888" }}>
+                          ※ 食材は「選択」でも「手入力」でもOK（次の段階で英語マッピングに繋げます）
+                        </div>
+                      </div>
+                    );
+                  })}
 
                   <button
                     onClick={() => addIngRow(cat)}
