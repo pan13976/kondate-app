@@ -1,91 +1,67 @@
-// src/app/page.tsx
 "use client";
 
-import { KondateFilter } from "../components/kondate/KondateFilter";
-import { KondateForm } from "../components/kondate/KondateForm";
-import { KondateList } from "../components/kondate/KondateList";
-import { useKondates } from "../hooks/useKondates";
-import { KondateDatePicker } from "../components/kondate/KondateDatePicker";
+import { useEffect, useMemo, useState } from "react";
+import WeekTiles from "../components/WeekTiles";
+import DayDetailModal from "../components/DayDetailModal";
+import { apiFetchKondatesByRange } from "../lib/kondatesApi";
+import { getWeekDates, startOfWeekMonday, toYmd } from "../lib/date";
+import type { KondateRow } from "../types/kondate";
 
-/**
- * page.tsx は「画面の組み立て」だけにする。
- * - 状態や処理は useKondates に逃がす
- * - UIパーツは components に逃がす
- */
-export default function HomePage() {
-  const {
-  visibleKondates,
-  loading,
+export default function Page() {
+  // 週の基準日（今日）
+  const today = useMemo(() => new Date(), []);
+  const start = useMemo(() => startOfWeekMonday(today), [today]);
+  const weekDates = useMemo(() => getWeekDates(start), [start]);
 
-  selectedDate,
-  setSelectedDate,
+  // 今週の from/to（YYYY-MM-DD）
+  const from = useMemo(() => toYmd(weekDates[0]), [weekDates]);
+  const to = useMemo(() => toYmd(weekDates[6]), [weekDates]);
 
-  title,
-  setTitle,
-  category,
-  setCategory,
+  const [kondates, setKondates] = useState<KondateRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string>("");
 
-  filterCategory,
-  setFilterCategory,
+  // 詳細モーダル
+  const [selectedYmd, setSelectedYmd] = useState<string | null>(null);
 
-  reload,
-  add,
-  remove,
-} = useKondates();
-
-
+  useEffect(() => {
+    (async () => {
+      try {
+        setLoading(true);
+        setError("");
+        const data = await apiFetchKondatesByRange(from, to);
+        setKondates(data);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "取得に失敗しました");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [from, to]);
 
   return (
-    <main style={{ padding: 16, maxWidth: 720, margin: "0 auto" }}>
-      <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 12 }}>献立アプリ（分割版）</h1>
+    <main style={{ maxWidth: 980, margin: "0 auto", padding: 16 }}>
+      <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 12 }}>献立（今週）</h1>
+      <div style={{ color: "#666", marginBottom: 12 }}>
+        {from} 〜 {to}
+      </div>
 
-      <KondateForm
-        title={title}
-        onChangeTitle={setTitle}
-        category={category}
-        onChangeCategory={setCategory}
-        loading={loading}
-        onAdd={async () => {
-          // hook側は throw する設計なので、ここで catch して表示を統一
-          try {
-            await add();
-          } catch (e) {
-            alert((e as Error).message);
-          }
-        }}
-        onReload={async () => {
-          try {
-            await reload();
-          } catch (e) {
-            alert((e as Error).message);
-          }
-        }}
-      />
+      {loading && <div>読み込み中...</div>}
+      {error && <div style={{ color: "crimson" }}>{error}</div>}
 
-      <KondateFilter
-        filterCategory={filterCategory}
-        onChangeFilterCategory={setFilterCategory}
-        loading={loading}
-        count={visibleKondates.length}
-      />
-<KondateDatePicker
-  selectedDate={selectedDate}
-  onChangeSelectedDate={setSelectedDate}
-  loading={loading}
-/>
-      <KondateList
-        items={visibleKondates}
-        loading={loading}
-        onDelete={async (id) => {
-          const ok = confirm("この献立を削除しますか？");
-          if (!ok) return;
+      {!loading && !error && (
+        <WeekTiles
+          weekDates={weekDates}
+          kondates={kondates}
+          onSelectDate={(ymd) => setSelectedYmd(ymd)}
+        />
+      )}
 
-          try {
-            await remove(id);
-          } catch (e) {
-            alert((e as Error).message);
-          }
-        }}
+      <DayDetailModal
+        open={selectedYmd !== null}
+        ymd={selectedYmd}
+        kondates={kondates}
+        onClose={() => setSelectedYmd(null)}
       />
     </main>
   );

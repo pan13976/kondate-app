@@ -23,6 +23,29 @@ async function readJsonOrEmpty<T>(res: Response): Promise<T | {}> {
   return (await res.json().catch(() => ({}))) as T | {};
 }
 
+
+/**
+ * 指定した日付範囲（from〜to）の献立を取得する
+ * - from/to は "YYYY-MM-DD" を想定
+ * - API: GET /api/kondates?from=...&to=...
+ */
+export async function apiFetchKondatesByRange(from: string, to: string): Promise<KondateRow[]> {
+  const res = await fetch(
+    `/api/kondates?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+    { method: "GET", cache: "no-store" }
+  );
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`GET /api/kondates failed: ${res.status} ${text}`);
+  }
+
+  const json = (await res.json()) as { kondates: KondateRow[] };
+  return json.kondates ?? [];
+}
+
+
+
 /** GET /api/kondates */
 export async function apiGetKondates(): Promise<KondateRow[]> {
   const res = await fetch("/api/kondates", { cache: "no-store" });
