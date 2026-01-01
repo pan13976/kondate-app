@@ -32,8 +32,8 @@ export default function WeekTiles({ weekDates, kondates, onSelectDate }: Props) 
               border: "1px solid #e5e5e5",
               borderRadius: 12,
               padding: 12,
-              background: "white",
-              cursor: "pointer",
+background: "white",
+boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
             }}
           >
             <div style={{ fontWeight: 700, marginBottom: 8 }}>{formatJpShort(d)}</div>

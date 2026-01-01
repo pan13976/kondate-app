@@ -105,7 +105,7 @@ export default function DayDetailModal({ open, ymd, kondates, onClose, onUpsert 
               <input
                 value={draft[cat] ?? ""}
                 onChange={(e) => setDraft((p) => ({ ...p, [cat]: e.target.value }))}
-                placeholder="例：厚揚げ麻婆丼"
+                placeholder="例：おにぎり"
                 disabled={saving}
                 style={{ padding: 8 }}
               />
