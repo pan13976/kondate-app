@@ -44,7 +44,31 @@ export async function apiFetchKondatesByRange(from: string, to: string): Promise
   return json.kondates ?? [];
 }
 
+export async function apiCreateKondate(input: {
+  title: string;
+  category: string;
+  meal_date: string; // "YYYY-MM-DD"
+}): Promise<KondateRow> {
+  const res = await fetch("/api/kondates", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json?.message ?? "追加に失敗しました");
+  return json.kondate as KondateRow;
+}
 
+export async function apiUpdateKondate(id: number, input: { title: string }): Promise<KondateRow> {
+  const res = await fetch(`/api/kondates/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json?.message ?? "更新に失敗しました");
+  return json.kondate as KondateRow;
+}
 
 /** GET /api/kondates */
 export async function apiGetKondates(): Promise<KondateRow[]> {

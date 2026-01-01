@@ -24,6 +24,18 @@ export default function Page() {
   // 詳細モーダル
   const [selectedYmd, setSelectedYmd] = useState<string | null>(null);
 
+const upsertKondate = (row: KondateRow) => {
+  setKondates((prev) => {
+    const idx = prev.findIndex((x) => x.id === row.id);
+    if (idx >= 0) {
+      const copy = [...prev];
+      copy[idx] = row;
+      return copy;
+    }
+    return [row, ...prev]; // 追加は先頭でOK（必要ならソート）
+  });
+};
+
   useEffect(() => {
     (async () => {
       try {
@@ -57,12 +69,13 @@ export default function Page() {
         />
       )}
 
-      <DayDetailModal
-        open={selectedYmd !== null}
-        ymd={selectedYmd}
-        kondates={kondates}
-        onClose={() => setSelectedYmd(null)}
-      />
+<DayDetailModal
+  open={selectedYmd !== null}
+  ymd={selectedYmd}
+  kondates={kondates}
+  onClose={() => setSelectedYmd(null)}
+  onUpsert={upsertKondate}
+/>
     </main>
   );
 }
