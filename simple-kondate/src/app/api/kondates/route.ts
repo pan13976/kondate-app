@@ -12,10 +12,10 @@ import { supabase } from "../../../lib/supabaseClient";
  * /api/kondates を叩くだけで一覧が取れる。
  */
 export async function GET() {
-const { data, error } = await supabase
-  .from("kondates")
-  .select("id,title,category,meal_date,created_at")
-  .order("created_at", { ascending: false });
+  const { data, error } = await supabase
+    .from("kondates")
+    .select("id,title,category,meal_date,created_at,ingredients")
+    .order("created_at", { ascending: false });
 
   if (error) {
     // エラーは 500 で返す（画面側で res.ok を見て弾く）

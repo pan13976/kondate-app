@@ -7,6 +7,12 @@
  */
 export type Category = "朝" | "昼" | "夜" | "弁当";
 
+//材料の型定義
+export type Ingredient = {
+  name: string;      // 例: "鶏もも"
+  amount: string;    // 例: "200g" / "1/2丁" / "大さじ1"
+};
+
 /**
  * kondates テーブルの1行を表す型
  * created_at は Supabase から string（ISO文字列）で返る想定
@@ -14,16 +20,16 @@ export type Category = "朝" | "昼" | "夜" | "弁当";
 export type KondateRow = {
   id: number;
   title: string;
-  category: Category | string; // DBは text なので念のため string も許容
+  category: "朝" | "昼" | "夜" | "弁当";
+  meal_date: string; // "YYYY-MM-DD"
   created_at: string;
-  // ★追加：日付（DATE型は Supabase/JSON で "YYYY-MM-DD" の文字列として来る想定）
-  meal_date: string;  
+  ingredients?: Ingredient[]; // ★追加（DBはdefault []）
 };
 
 //export type AddKondateInput = {
- // title: string;
- // category: Category;
- // meal_date: string; // "YYYY-MM-DD"
+// title: string;
+// category: Category;
+// meal_date: string; // "YYYY-MM-DD"
 //};
 /**
  * UIやバリデーションで使う「カテゴリ一覧」
