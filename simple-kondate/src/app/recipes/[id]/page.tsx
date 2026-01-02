@@ -1,108 +1,114 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
-/**
- * レシピ詳細ページ（Step②）
- *
- * 目的：
- * - レシピ一覧 → 詳細を見る流れを完成させる
- * - 材料・手順・メモを「献立に使える形」で表示
- *
- * 今は：
- * - ダミーデータから ID で取得
- *
- * 将来：
- * - Supabase recipes / recipe_ingredients テーブルに差し替え
- * - 「献立に使う」ボタンで kondates へ流し込み
- */
-
-/**
- * レシピ材料の型
- * ※ kondates.ingredients にそのまま近い形にしておく
- */
 type RecipeIngredient = {
   name: string;
   amount: string;
 };
 
-/**
- * レシピ詳細の型
- */
 type RecipeDetail = {
   id: string;
   title: string;
-  description?: string;
-  timeMinutes?: number;
-  servings?: number;
+  description?: string | null;
+  timeMinutes?: number | null;
+  servings?: number | null;
   ingredients: RecipeIngredient[];
   steps: string[];
-  notes?: string;
+  notes?: string | null;
 };
 
-/**
- * 仮データ（本当は API / DB）
- * Step① の一覧と ID を揃えている
- */
-const MOCK_RECIPE_DETAILS: RecipeDetail[] = [
-  {
-    id: "1",
-    title: "鶏の唐揚げ",
-    description: "家族みんなが好きな定番メニュー。",
-    timeMinutes: 30,
-    servings: 3,
-    ingredients: [
-      { name: "鶏もも肉", amount: "300g" },
-      { name: "醤油", amount: "大さじ2" },
-      { name: "酒", amount: "大さじ1" },
-      { name: "にんにく", amount: "1片" },
-    ],
-    steps: [
-      "鶏肉を一口大に切る",
-      "調味料をもみ込んで10分置く",
-      "油でカラッと揚げる",
-    ],
-    notes: "下味をつけすぎない方が子ども向け。",
-  },
-  {
-    id: "2",
-    title: "野菜たっぷりカレー",
-    description: "作り置きできる万能カレー。",
-    timeMinutes: 60,
-    servings: 4,
-    ingredients: [
-      { name: "玉ねぎ", amount: "2個" },
-      { name: "にんじん", amount: "1本" },
-      { name: "じゃがいも", amount: "2個" },
-      { name: "カレールー", amount: "1/2箱" },
-    ],
-    steps: [
-      "野菜を食べやすく切る",
-      "鍋で炒めて水を加える",
-      "火が通ったらルーを入れる",
-    ],
-  },
-];
+// APIが返す形（snake_case）
+type ApiRecipeDetail = {
+  id: string;
+  title: string;
+  description?: string | null;
+  time_minutes?: number | null;
+  servings?: number | null;
+  steps?: string[] | null;
+  notes?: string | null;
+  // recipe_ingredients を返す実装にした場合のみ
+  ingredients?: { name: string; amount: string }[] | null;
+};
 
 export default function RecipeDetailPage() {
-  /**
-   * URL の [id] を取得
-   * 例：/recipes/1 → id = "1"
-   */
   const params = useParams();
   const id = params?.id as string;
 
-  /**
-   * 本来は useEffect + fetch だが、
-   * Step②では「画面構造」が目的なので同期で OK
-   */
-  const recipe = MOCK_RECIPE_DETAILS.find((r) => r.id === id);
+  const [recipe, setRecipe] = useState<RecipeDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  if (!recipe) {
-    // 不正 ID / 削除済みなど
+  useEffect(() => {
+    if (!id) return;
+
+    let alive = true;
+
+    (async () => {
+      try {
+        setErrorMsg(null);
+        setNotFound(false);
+
+        const res = await fetch(`/api/recipes/${id}`, { cache: "no-store" });
+        const data = (await res.json()) as any;
+
+        if (!alive) return;
+
+        if (res.status === 404) {
+          setNotFound(true);
+          return;
+        }
+        if (!res.ok) {
+          throw new Error(data?.error ?? `failed (status=${res.status})`);
+        }
+
+        const api = data as ApiRecipeDetail;
+
+        // UI用に整形（snake_case → camelCase）
+        const mapped: RecipeDetail = {
+          id: api.id,
+          title: api.title,
+          description: api.description ?? null,
+          timeMinutes: api.time_minutes ?? null,
+          servings: api.servings ?? null,
+          ingredients: (api.ingredients ?? []).map((i) => ({
+            name: i.name,
+            amount: i.amount,
+          })),
+          steps: api.steps ?? [],
+          notes: api.notes ?? null,
+        };
+
+        setRecipe(mapped);
+      } catch (e: any) {
+        if (!alive) return;
+        setErrorMsg(String(e?.message ?? e));
+      } finally {
+        if (!alive) return;
+        setLoading(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [id]);
+
+  if (loading) {
+    return (
+      <main style={{ maxWidth: 980, margin: "0 auto", padding: 16 }}>
+        <p>読み込み中…</p>
+      </main>
+    );
+  }
+
+  if (notFound || !recipe) {
     return (
       <main style={{ maxWidth: 980, margin: "0 auto", padding: 16 }}>
         <p>レシピが見つかりません。</p>
+        {errorMsg && <p style={{ color: "#a11" }}>エラー：{errorMsg}</p>}
         <a href="/recipes">← レシピ一覧へ戻る</a>
       </main>
     );
@@ -112,24 +118,13 @@ export default function RecipeDetailPage() {
     <main style={{ maxWidth: 980, margin: "0 auto", padding: 16 }}>
       {/* ===== ヘッダー ===== */}
       <header style={{ marginBottom: 16 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 900 }}>
-          {recipe.title}
-        </h1>
+        <h1 style={{ fontSize: 22, fontWeight: 900 }}>{recipe.title}</h1>
 
         {recipe.description && (
-          <p style={{ color: "#555", marginTop: 6 }}>
-            {recipe.description}
-          </p>
+          <p style={{ color: "#555", marginTop: 6 }}>{recipe.description}</p>
         )}
 
-        <div
-          style={{
-            display: "flex",
-            gap: 10,
-            marginTop: 10,
-            flexWrap: "wrap",
-          }}
-        >
+        <div style={{ display: "flex", gap: 10, marginTop: 10, flexWrap: "wrap" }}>
           {recipe.timeMinutes && (
             <span
               style={{
@@ -158,7 +153,7 @@ export default function RecipeDetailPage() {
         </div>
       </header>
 
-      {/* ===== 献立に使う（将来の主役） ===== */}
+      {/* ===== 献立に使う（将来） ===== */}
       <section style={{ marginBottom: 20 }}>
         <button
           type="button"
@@ -178,40 +173,42 @@ export default function RecipeDetailPage() {
 
       {/* ===== 材料 ===== */}
       <section style={{ marginBottom: 20 }}>
-        <h2 style={{ fontSize: 18, fontWeight: 900, marginBottom: 8 }}>
-          材料
-        </h2>
+        <h2 style={{ fontSize: 18, fontWeight: 900, marginBottom: 8 }}>材料</h2>
 
-        <ul style={{ paddingLeft: 16 }}>
-          {recipe.ingredients.map((ing, idx) => (
-            <li key={idx} style={{ marginBottom: 6 }}>
-              {ing.name}（{ing.amount}）
-            </li>
-          ))}
-        </ul>
+        {recipe.ingredients.length === 0 ? (
+          <p style={{ color: "#555" }}>材料データが未登録です。</p>
+        ) : (
+          <ul style={{ paddingLeft: 16 }}>
+            {recipe.ingredients.map((ing, idx) => (
+              <li key={idx} style={{ marginBottom: 6 }}>
+                {ing.name}（{ing.amount}）
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       {/* ===== 作り方 ===== */}
       <section style={{ marginBottom: 20 }}>
-        <h2 style={{ fontSize: 18, fontWeight: 900, marginBottom: 8 }}>
-          作り方
-        </h2>
+        <h2 style={{ fontSize: 18, fontWeight: 900, marginBottom: 8 }}>作り方</h2>
 
-        <ol style={{ paddingLeft: 18 }}>
-          {recipe.steps.map((step, idx) => (
-            <li key={idx} style={{ marginBottom: 8 }}>
-              {step}
-            </li>
-          ))}
-        </ol>
+        {recipe.steps.length === 0 ? (
+          <p style={{ color: "#555" }}>手順データが未登録です。</p>
+        ) : (
+          <ol style={{ paddingLeft: 18 }}>
+            {recipe.steps.map((step, idx) => (
+              <li key={idx} style={{ marginBottom: 8 }}>
+                {step}
+              </li>
+            ))}
+          </ol>
+        )}
       </section>
 
       {/* ===== メモ ===== */}
       {recipe.notes && (
         <section style={{ marginBottom: 20 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 900, marginBottom: 8 }}>
-            メモ
-          </h2>
+          <h2 style={{ fontSize: 18, fontWeight: 900, marginBottom: 8 }}>メモ</h2>
           <p style={{ color: "#555" }}>{recipe.notes}</p>
         </section>
       )}
