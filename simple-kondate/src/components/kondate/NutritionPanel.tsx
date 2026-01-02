@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { toYmd } from "../lib/date";
-import { apiCalcNutrition, type NutritionResult } from "../lib/nutritionApi";
-import type { KondateRow } from "../types/kondate";
+import { toYmd } from "../../lib/date";
+import { apiCalcNutrition, type NutritionResult } from "../../lib/nutritionApi";
+import type { KondateRow } from "../../types/kondate";
 
 /**
  * 栄養計算UIを page.tsx から切り出したコンポーネント

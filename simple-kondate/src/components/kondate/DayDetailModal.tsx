@@ -2,9 +2,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { KondateRow } from "../types/kondate";
-import { apiCreateKondate, apiUpdateKondate } from "../lib/kondatesApi";
-import { apiFetchIngredients, type IngredientMaster } from "../lib/ingredientsApi";
+import type { KondateRow } from "../../types/kondate";
+import { apiCreateKondate, apiUpdateKondate } from "../../lib/kondatesApi";
+import { apiFetchIngredients, type IngredientMaster } from "../../lib/ingredientsApi";
 
 /**
  * 1行分の材料（分量）
