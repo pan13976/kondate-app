@@ -1,190 +1,296 @@
-"use client";
-
-import { useMemo, useState } from "react";
-
-// ★ ここは @/ ではなく相対パス（../）にするルール
-import { MonthCalendar } from "../components/kondate/MonthCalendar";
-import DayDetailModal from "../components/kondate/DayDetailModal";
-import NutritionPanel from "../components/kondate/NutritionPanel";
-
-import { useWeekKondates } from "../hooks/kondates/useWeekKondates";
-
-/**
- * YYYY-MM-DD に整形（Supabase の meal_date と同形式）
- */
-function formatYmd(d: Date) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-/**
- * month（任意日付）から、その月の開始日/終了日（YYYY-MM-DD）を返す
- */
-function getMonthRange(month: Date) {
-  const start = new Date(month.getFullYear(), month.getMonth(), 1);
-  const end = new Date(month.getFullYear(), month.getMonth() + 1, 0); // 月末日
-  return { from: formatYmd(start), to: formatYmd(end) };
-}
-
-/**
- * kondates から、日付ごとの「埋まり具合」を作る
- * - filledCount: 0〜4（朝/昼/夜/弁当）
- * - hasEmpty: 4未満なら true
- *
- * MonthCalendar の ●●● 表示の元データになる
- */
-function buildDayMeta(kondates: any[]) {
-  const map: Record<string, { filledCount: number; hasEmpty: boolean }> = {};
-
-  for (const k of kondates) {
-    const ymd = k.meal_date;
-    if (!ymd) continue;
-
-    // その日のカテゴリを重複なしで数える（同カテゴリ複数登録を許してるならここは調整）
-    if (!map[ymd]) map[ymd] = { filledCount: 0, hasEmpty: true };
-
-    // ざっくり：1レコード=1枠として数える想定（今の構造が「朝/昼/夜/弁当ごとに1件」ならこれで合う）
-    map[ymd].filledCount += 1;
-  }
-
-  // 0〜4に丸めて hasEmpty を確定
-  for (const ymd of Object.keys(map)) {
-    const filled = Math.min(4, Math.max(0, map[ymd].filledCount));
-    map[ymd] = { filledCount: filled, hasEmpty: filled < 4 };
-  }
-
-  return map;
-}
-
-export default function Page() {
-  // 表示中の月（ヘッダーの前月/次月で切り替える）
-  const [month, setMonth] = useState(() => new Date());
-
-  // 選択中の日付（DayDetailModal に渡す）
-  const [selectedYmd, setSelectedYmd] = useState<string | null>(null);
-
-  // 月の範囲（YYYY-MM-DD）
-  const { from, to } = useMemo(() => getMonthRange(month), [month]);
-
-  // 既存フックを “期間取得” として流用（名前は useWeekKondates だけど中身が期間ならOK）
-  const { kondates, loading, error, upsertKondate } = useWeekKondates(from, to);
-
-  // MonthCalendar の ● 表示用
-  const dayMeta = useMemo(() => buildDayMeta(kondates ?? []), [kondates]);
-
-  const title = useMemo(
-    () => month.toLocaleDateString("ja-JP", { year: "numeric", month: "long" }),
-    [month]
-  );
+export default function Home() {
+  const today = new Date();
+  const ymd = today.toLocaleDateString("ja-JP", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    weekday: "short",
+  });
 
   return (
-    <main style={{ maxWidth: 980, margin: "0 auto", padding: 16 }}>
-      {/* ヘッダー（月移動つき） */}
-      <div
+    <main style={{ maxWidth: 980, margin: "0 auto", padding: 20 }}>
+      {/* ヒーロー */}
+      <header
         style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 12,
-          marginBottom: 12,
+          borderRadius: 16,
+          padding: 18,
+          background: "rgba(255,255,255,0.75)",
+          boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
+          backdropFilter: "blur(8px)",
+          marginBottom: 16,
         }}
       >
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 900, margin: 0 }}>
-            献立（{title}）
-          </h1>
-          <div style={{ color: "#666", marginTop: 6 }}>
-            {from} 〜 {to}
+        <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+          <div
+            aria-hidden
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 14,
+              display: "grid",
+              placeItems: "center",
+              background: "linear-gradient(135deg, #b3e5ff 0%, #c8f7dc 100%)",
+              fontSize: 22,
+            }}
+          >
+            🏠
+          </div>
+
+          <div style={{ flex: 1 }}>
+            <div style={{ color: "#555", fontSize: 13 }}>{ymd}</div>
+            <h1 style={{ fontSize: 22, fontWeight: 900, margin: "4px 0 0" }}>
+              家族アプリ
+            </h1>
+            <p
+              style={{
+                margin: "6px 0 0",
+                color: "#555",
+                fontSize: 14,
+                lineHeight: 1.5,
+              }}
+            >
+              献立とレシピをまとめて管理。材料と栄養もさっと確認できます。
+            </p>
           </div>
         </div>
+      </header>
 
-        <div style={{ display: "flex", gap: 8 }}>
-          <button
-            type="button"
-            onClick={() =>
-              setMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))
-            }
-            style={{
-              padding: "8px 12px",
-              borderRadius: 10,
-              border: "1px solid rgba(0,0,0,0.12)",
-              background: "rgba(255,255,255,0.85)",
-              cursor: "pointer",
-              fontWeight: 800,
-            }}
-          >
-            ← 前月
-          </button>
+      {/* メニューカード */}
+      <section
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+          gap: 14,
+        }}
+      >
+        {/* 献立 */}
+        <a
+          href="/kondates"
+          style={{
+            textDecoration: "none",
+            color: "inherit",
+            borderRadius: 16,
+            padding: 16,
+            background: "rgba(255,255,255,0.85)",
+            boxShadow: "0 10px 24px rgba(0,0,0,0.06)",
+            border: "1px solid rgba(0,0,0,0.06)",
+            display: "block",
+          }}
+        >
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <div
+              aria-hidden
+              style={{
+                width: 46,
+                height: 46,
+                borderRadius: 16,
+                display: "grid",
+                placeItems: "center",
+                background: "linear-gradient(135deg, #ffd6a5 0%, #bde0fe 100%)",
+                fontSize: 22,
+              }}
+            >
+              🍱
+            </div>
 
-          <button
-            type="button"
-            onClick={() => setMonth(new Date())}
-            style={{
-              padding: "8px 12px",
-              borderRadius: 10,
-              border: "1px solid rgba(0,0,0,0.12)",
-              background: "rgba(255,255,255,0.85)",
-              cursor: "pointer",
-              fontWeight: 800,
-            }}
-          >
-            今月
-          </button>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 16, fontWeight: 900 }}>献立</div>
+              <div style={{ color: "#555", fontSize: 13, marginTop: 4 }}>
+                月表示・材料入力・栄養計算
+              </div>
+            </div>
 
-          <button
-            type="button"
-            onClick={() =>
-              setMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))
-            }
-            style={{
-              padding: "8px 12px",
-              borderRadius: 10,
-              border: "1px solid rgba(0,0,0,0.12)",
-              background: "rgba(255,255,255,0.85)",
-              cursor: "pointer",
-              fontWeight: 800,
-            }}
-          >
-            次月 →
-          </button>
-        </div>
-      </div>
-
-      {/* ローディング・エラー */}
-      {loading && <div>読み込み中...</div>}
-      {error && <div style={{ color: "crimson" }}>{error}</div>}
-
-      {/* 月カレンダー（タップで日別モーダル） */}
-      {!loading && !error && (
-        <>
-          <MonthCalendar
-            month={month}
-            dayMeta={dayMeta}
-            onSelectDate={(date) => setSelectedYmd(formatYmd(date))}
-          />
-
-          {/* 栄養パネルは一旦残すなら、デフォルト日付は from でOK
-              （最終的には “日モーダル内に栄養サマリー” がスマホ向き） */}
-          <div style={{ marginTop: 14 }}>
-            <NutritionPanel
-              weekDates={[]} // ★ 今の NutritionPanel の props が週前提なら、次で “月/日” 対応に整理しよう
-              kondates={kondates}
-              defaultYmd={from}
-            />
+            <div aria-hidden style={{ color: "#777", fontSize: 18 }}>
+              →
+            </div>
           </div>
-        </>
-      )}
 
-      {/* 日別詳細モーダル（既存のまま流用） */}
-      <DayDetailModal
-        open={selectedYmd !== null}
-        ymd={selectedYmd}
-        kondates={kondates}
-        onClose={() => setSelectedYmd(null)}
-        onUpsert={upsertKondate}
-      />
+          <div
+            style={{
+              marginTop: 12,
+              display: "flex",
+              gap: 8,
+              flexWrap: "wrap",
+            }}
+          >
+            {["朝/昼/夜/弁当", "カテゴリ選択", "USDA栄養"].map((t) => (
+              <span
+                key={t}
+                style={{
+                  fontSize: 12,
+                  color: "#345",
+                  background: "rgba(179,229,255,0.5)",
+                  padding: "4px 8px",
+                  borderRadius: 999,
+                  border: "1px solid rgba(0,0,0,0.06)",
+                }}
+              >
+                {t}
+              </span>
+            ))}
+          </div>
+        </a>
+
+        {/* レシピ */}
+        <a
+          href="/recipes"
+          style={{
+            textDecoration: "none",
+            color: "inherit",
+            borderRadius: 16,
+            padding: 16,
+            background: "rgba(255,255,255,0.85)",
+            boxShadow: "0 10px 24px rgba(0,0,0,0.06)",
+            border: "1px solid rgba(0,0,0,0.06)",
+            display: "block",
+          }}
+        >
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <div
+              aria-hidden
+              style={{
+                width: 46,
+                height: 46,
+                borderRadius: 16,
+                display: "grid",
+                placeItems: "center",
+                background: "linear-gradient(135deg, #c8f7dc 0%, #ffe29a 100%)",
+                fontSize: 22,
+              }}
+            >
+              🍳
+            </div>
+
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 16, fontWeight: 900 }}>レシピ</div>
+              <div style={{ color: "#555", fontSize: 13, marginTop: 4 }}>
+                レシピ登録・検索
+              </div>
+            </div>
+
+            <div aria-hidden style={{ color: "#777", fontSize: 18 }}>
+              →
+            </div>
+          </div>
+
+          <div
+            style={{
+              marginTop: 12,
+              display: "flex",
+              gap: 8,
+              flexWrap: "wrap",
+            }}
+          >
+            {["お気に入り", "材料メモ", "献立に流用"].map((t) => (
+              <span
+                key={t}
+                style={{
+                  fontSize: 12,
+                  color: "#345",
+                  background: "rgba(200,247,220,0.55)",
+                  padding: "4px 8px",
+                  borderRadius: 999,
+                  border: "1px solid rgba(0,0,0,0.06)",
+                }}
+              >
+                {t}
+              </span>
+            ))}
+          </div>
+        </a>
+
+        {/* ★ 買い物リスト（追加） */}
+        <a
+          href="/shopping"
+          style={{
+            textDecoration: "none",
+            color: "inherit",
+            borderRadius: 16,
+            padding: 16,
+            background: "rgba(255,255,255,0.85)",
+            boxShadow: "0 10px 24px rgba(0,0,0,0.06)",
+            border: "1px solid rgba(0,0,0,0.06)",
+            display: "block",
+          }}
+        >
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <div
+              aria-hidden
+              style={{
+                width: 46,
+                height: 46,
+                borderRadius: 16,
+                display: "grid",
+                placeItems: "center",
+                background: "linear-gradient(135deg, #ffd1dc 0%, #d0f4de 100%)",
+                fontSize: 22,
+              }}
+            >
+              🛒
+            </div>
+
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 16, fontWeight: 900 }}>
+                買い物リスト
+              </div>
+              <div style={{ color: "#555", fontSize: 13, marginTop: 4 }}>
+                献立から材料を自動集計
+              </div>
+            </div>
+
+            <div aria-hidden style={{ color: "#777", fontSize: 18 }}>
+              →
+            </div>
+          </div>
+
+          <div
+            style={{
+              marginTop: 12,
+              display: "flex",
+              gap: 8,
+              flexWrap: "wrap",
+            }}
+          >
+            {["自動集計", "チェック管理", "週・月対応"].map((t) => (
+              <span
+                key={t}
+                style={{
+                  fontSize: 12,
+                  color: "#345",
+                  background: "rgba(255,209,220,0.6)",
+                  padding: "4px 8px",
+                  borderRadius: 999,
+                  border: "1px solid rgba(0,0,0,0.06)",
+                }}
+              >
+                {t}
+              </span>
+            ))}
+          </div>
+        </a>
+
+        {/* 将来の拡張用 */}
+        <div
+          style={{
+            borderRadius: 16,
+            padding: 16,
+            background: "rgba(255,255,255,0.6)",
+            border: "1px dashed rgba(0,0,0,0.15)",
+          }}
+        >
+          <div style={{ fontWeight: 900, fontSize: 16 }}>今後追加</div>
+          <div
+            style={{
+              color: "#555",
+              fontSize: 13,
+              marginTop: 6,
+              lineHeight: 1.6,
+            }}
+          >
+            例：冷蔵庫メモ、家族タスクなど。
+          </div>
+        </div>
+      </section>
     </main>
   );
 }
