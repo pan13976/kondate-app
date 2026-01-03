@@ -142,6 +142,7 @@ export default function RecipeDetailPage() {
           category, // "朝" | "昼" | "夜" | "弁当"
           meal_date: mealDate,
           recipe_id: recipe.id, // ★DBに追加したカラム
+          ingredients: recipe.ingredients, // ★追加（[{name,amount}]）
         }),
       });
 
