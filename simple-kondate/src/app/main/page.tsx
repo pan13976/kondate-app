@@ -131,7 +131,7 @@ export default function Home() {
           </div>
         </a>
 
-        {/* ★ レシピ（新規） */}
+        {/* レシピ */}
         <a
           href="/recipes"
           style={{
@@ -164,7 +164,7 @@ export default function Home() {
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 16, fontWeight: 900 }}>レシピ</div>
               <div style={{ color: "#555", fontSize: 13, marginTop: 4 }}>
-                レシピ登録・検索（準備中）
+                レシピ登録・検索
               </div>
             </div>
 
@@ -199,7 +199,77 @@ export default function Home() {
           </div>
         </a>
 
-        {/* 将来の拡張用ダミーカード */}
+        {/* ★ 買い物リスト（追加） */}
+        <a
+          href="/shopping"
+          style={{
+            textDecoration: "none",
+            color: "inherit",
+            borderRadius: 16,
+            padding: 16,
+            background: "rgba(255,255,255,0.85)",
+            boxShadow: "0 10px 24px rgba(0,0,0,0.06)",
+            border: "1px solid rgba(0,0,0,0.06)",
+            display: "block",
+          }}
+        >
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <div
+              aria-hidden
+              style={{
+                width: 46,
+                height: 46,
+                borderRadius: 16,
+                display: "grid",
+                placeItems: "center",
+                background: "linear-gradient(135deg, #ffd1dc 0%, #d0f4de 100%)",
+                fontSize: 22,
+              }}
+            >
+              🛒
+            </div>
+
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 16, fontWeight: 900 }}>
+                買い物リスト
+              </div>
+              <div style={{ color: "#555", fontSize: 13, marginTop: 4 }}>
+                献立から材料を自動集計
+              </div>
+            </div>
+
+            <div aria-hidden style={{ color: "#777", fontSize: 18 }}>
+              →
+            </div>
+          </div>
+
+          <div
+            style={{
+              marginTop: 12,
+              display: "flex",
+              gap: 8,
+              flexWrap: "wrap",
+            }}
+          >
+            {["自動集計", "チェック管理", "週・月対応"].map((t) => (
+              <span
+                key={t}
+                style={{
+                  fontSize: 12,
+                  color: "#345",
+                  background: "rgba(255,209,220,0.6)",
+                  padding: "4px 8px",
+                  borderRadius: 999,
+                  border: "1px solid rgba(0,0,0,0.06)",
+                }}
+              >
+                {t}
+              </span>
+            ))}
+          </div>
+        </a>
+
+        {/* 将来の拡張用 */}
         <div
           style={{
             borderRadius: 16,
@@ -217,7 +287,7 @@ export default function Home() {
               lineHeight: 1.6,
             }}
           >
-            例：買い物リスト、冷蔵庫メモ、家族タスクなど。
+            例：冷蔵庫メモ、家族タスクなど。
           </div>
         </div>
       </section>
