@@ -1,3 +1,4 @@
+// src/components/recipes/RecipeCard.tsx
 "use client";
 
 import type { Recipe } from "../../types/recipe";
@@ -35,21 +36,6 @@ export function RecipeCard({ recipe }: { recipe: Recipe }) {
             ⏱ {recipe.timeMinutes}分
           </span>
         ) : null}
-
-        {(recipe.tags ?? []).map((tag) => (
-          <span
-            key={tag}
-            style={{
-              fontSize: 12,
-              padding: "4px 8px",
-              borderRadius: 999,
-              background: "rgba(179,229,255,0.6)",
-              border: "1px solid rgba(0,0,0,0.08)",
-            }}
-          >
-            {tag}
-          </span>
-        ))}
       </div>
 
       <div style={{ marginTop: 10, display: "flex", gap: 16, fontSize: 13 }}>
@@ -59,7 +45,14 @@ export function RecipeCard({ recipe }: { recipe: Recipe }) {
         >
           詳細を見る →
         </a>
-        <span style={{ color: "#999" }}>献立に使う</span>
+
+        {/* ★ 有効化 */}
+        <a
+          href={`/recipes/${recipe.id}?use=1`}
+          style={{ color: "#1f5fa5", fontWeight: 800, textDecoration: "none" }}
+        >
+          献立に使う
+        </a>
       </div>
     </div>
   );
