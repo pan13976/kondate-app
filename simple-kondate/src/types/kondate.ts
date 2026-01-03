@@ -24,6 +24,7 @@ export type KondateRow = {
   meal_date: string; // "YYYY-MM-DD"
   created_at: string;
   ingredients?: Ingredient[]; // ★追加（DBはdefault []）
+  recipe_id?: string | null;
 };
 
 //export type AddKondateInput = {
