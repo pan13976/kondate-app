@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { KondateRow } from "../../types/kondate";
-import { apiCreateKondate, apiUpdateKondate, apiDeleteKondate } from "../../lib/kondates/Api";
+import { apiCreateKondate, apiUpdateKondate } from "../../lib/kondates/Api";
 import { apiFetchIngredients, type IngredientMaster } from "../../lib/ingredientsApi";
 
 /**
@@ -17,14 +17,17 @@ type Ingredient = {
 };
 
 type Props = {
-  open: boolean;
-  ymd: string | null;
-  kondates: KondateRow[];
-  onClose: () => void;
-  onUpsert: (row: KondateRow) => void;
+    open: boolean;
+    ymd: string | null;
+    kondates: KondateRow[];
+    onClose: () => void;
 
-  // ★追加：削除したら親stateから消す
-  onDelete: (id: number) => void;
+    /**
+     * 保存後、親の kondates state を即更新するために呼ぶ
+     * - idが同じなら置換
+     * - 無ければ追加
+     */
+    onUpsert: (row: KondateRow) => void;
 };
 
 /**

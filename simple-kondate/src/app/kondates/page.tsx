@@ -349,7 +349,6 @@ export default function KondatesPage() {
         kondates={selectedYmd ? byDate.get(selectedYmd) ?? [] : []}
         onClose={() => setSelectedYmd(null)}
         onUpsert={upsertKondate}
-        onDelete={removeKondate}
       />
     </main>
   );
