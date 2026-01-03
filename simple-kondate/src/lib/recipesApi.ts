@@ -1,77 +1,72 @@
 // src/lib/recipesApi.ts
 import { supabase } from "./supabaseClient";
-
+import type { ApiRecipe } from "../types/recipe";
 export type RecipeListItem = {
-    id: string;
-    title: string;
-    description?: string | null;
-    timeMinutes?: number | null;
-    tags?: string[] | null;
-    mainCategory?: string | null; // ★追加  
+  id: string;
+  title: string;
+  description?: string | null;
+  timeMinutes?: number | null;
+  tags?: string[] | null;
+  mainCategory?: string | null; // ★追加  
 };
 
 export type RecipeIngredient = { name: string; amount: string };
 
 export type RecipeDetail = {
-    id: string;
-    title: string;
-    description?: string | null;
-    timeMinutes?: number | null;
-    servings?: number | null;
-    mainCategory?: string | null; // ★追加
-    ingredients: RecipeIngredient[];
-    steps: string[];
-    notes?: string | null;
+  id: string;
+  title: string;
+  description?: string | null;
+  timeMinutes?: number | null;
+  servings?: number | null;
+  mainCategory?: string | null; // ★追加
+  ingredients: RecipeIngredient[];
+  steps: string[];
+  notes?: string | null;
 };
 
 
 export async function getRecipes(): Promise<RecipeListItem[]> {
-    const { data, error } = await supabase
-        .from("recipes")
-        .select("id,title,description,time_minutes,tags,main_category") // ★追加
-        .order("created_at", { ascending: false });
+  const { data, error } = await supabase
+    .from("recipes")
+    .select("id,title,description,time_minutes,tags,main_category") // ★追加
+    .order("created_at", { ascending: false });
 
-    if (error) throw error;
 
-    return (data ?? []).map((r) => ({
-        id: r.id,
-        title: r.title,
-        description: r.description,
-        timeMinutes: r.time_minutes,
-        tags: r.tags,
-        mainCategory: r.main_category, // ★追加
-    }));
+
+  if (error) throw error;
+  // DBの返却（snake_case）をそのままAPIで返す
+  return (data ?? []) as ApiRecipe[];
 }
 
 export async function getRecipeById(id: string): Promise<RecipeDetail | null> {
-    const { data: recipe, error: recipeError } = await supabase
-        .from("recipes")
-        .select("id,title,description,time_minutes,servings,steps,notes,main_category")
-        .eq("id", id)
-        .maybeSingle();
+  const { data: recipe, error: recipeError } = await supabase
+    .from("recipes")
+    .select("id,title,description,time_minutes,servings,steps,notes,main_category")
+    .eq("id", id)
+    .maybeSingle();
 
-    if (recipeError) throw recipeError;
-    if (!recipe) return null;
+  if (recipeError) throw recipeError;
+  if (!recipe) return null;
 
-    const { data: ingredients, error: ingError } = await supabase
-        .from("recipe_ingredients")
-        .select("name,amount,sort_order")
-        .eq("recipe_id", id)
-        .order("sort_order", { ascending: true });
+  const { data: ingredients, error: ingError } = await supabase
+    .from("recipe_ingredients")
+    .select("name,amount,sort_order")
+    .eq("recipe_id", id)
+    .order("sort_order", { ascending: true });
 
-    if (ingError) throw ingError;
+  if (ingError) throw ingError;
 
-    return {
-        id: recipe.id,
-        title: recipe.title,
-        description: recipe.description,
-        timeMinutes: recipe.time_minutes,
-        servings: recipe.servings,
-        mainCategory: recipe.main_category,
-        ingredients: (ingredients ?? []).map((i) => ({ name: i.name, amount: i.amount })),
-        steps: recipe.steps ?? [],
-        notes: recipe.notes,
-    };
+  return {
+    id: recipe.id,
+    title: recipe.title,
+    description: recipe.description,
+    timeMinutes: recipe.time_minutes,
+    servings: recipe.servings,
+    mainCategory: recipe.main_category,
+    ingredients: (ingredients ?? []).map((i) => ({ name: i.name, amount: i.amount })),
+    steps: recipe.steps ?? [],
+    notes: recipe.notes,
+  };
 }
 
 export type CreateRecipeInput = {
@@ -87,7 +82,7 @@ export type CreateRecipeInput = {
 };
 
 const MAIN_CATEGORIES = [
-  "主菜","副菜","主食","汁物","麺","サラダ","おやつ","作り置き","その他",
+  "主菜", "副菜", "主食", "汁物", "麺", "サラダ", "おやつ", "作り置き", "その他",
 ] as const;
 
 function isValidMainCategory(v: string) {
