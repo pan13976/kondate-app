@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { KondateRow } from "../types/kondate";
-import { apiFetchKondatesByRange } from "../lib/kondatesApi";
+import type { KondateRow } from "../../types/kondate";
+import { apiFetchKondatesByRange } from "../../lib/kondates/Api";
 
 /**
  * from/to が変わったら、その期間の献立を取得する

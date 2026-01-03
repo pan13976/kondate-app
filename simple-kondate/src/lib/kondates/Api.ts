@@ -7,7 +7,7 @@ import type {
   KondateRow,
   PostKondatesResponse,
   Category,
-} from "../types/kondate";
+} from "../../types/kondate";
 
 /**
  * API呼び出しはここに集約する。

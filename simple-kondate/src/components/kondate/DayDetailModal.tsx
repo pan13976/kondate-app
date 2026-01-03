@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { KondateRow } from "../../types/kondate";
-import { apiCreateKondate, apiUpdateKondate } from "../../lib/kondatesApi";
+import { apiCreateKondate, apiUpdateKondate } from "../../lib/kondates/Api";
 import { apiFetchIngredients, type IngredientMaster } from "../../lib/ingredientsApi";
 
 /**

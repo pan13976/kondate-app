@@ -1,8 +1,8 @@
 // src/hooks/useKondates.ts
 
 import { useEffect, useMemo, useState } from "react";
-import type { Category, KondateRow } from "../types/kondate";
-import { apiAddKondate, apiDeleteKondate, apiGetKondates } from "../lib/kondatesApi";
+import type { Category, KondateRow } from "../../types/kondate";
+import { apiAddKondate, apiDeleteKondate, apiGetKondates } from "../../lib/kondates/Api";
 
 /**
  * 画面の「状態」と「処理」をまとめるカスタムフック

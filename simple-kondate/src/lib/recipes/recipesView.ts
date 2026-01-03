@@ -1,4 +1,4 @@
-import type { ApiRecipe, Recipe } from "../types/recipe";
+import type { ApiRecipe, Recipe } from "../../types/recipe";
 
 const CATEGORY_ORDER = [
   "主菜",

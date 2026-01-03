@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { ApiRecipe, Recipe } from "../types/recipe";
-import { buildAllTags, filterRecipes, groupByTag, mapApiRecipe, groupByMainCategory } from "../lib/recipesView";
+import type { ApiRecipe, Recipe } from "../../types/recipe";
+import { buildAllTags, filterRecipes, groupByTag, mapApiRecipe, groupByMainCategory } from "../../lib/recipes/recipesView";
 
 export function useRecipes() {
     const [recipes, setRecipes] = useState<Recipe[]>([]);

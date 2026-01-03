@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getRecipes, createRecipe } from "../../../lib/recipesApi";
+import { getRecipes, createRecipe } from "../../../lib/recipes/Api";
 
 export async function GET() {
   try {

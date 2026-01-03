@@ -1,6 +1,6 @@
 "use client";
 
-import { useRecipes } from "../../hooks/useRecipes";
+import { useRecipes } from "../../hooks/recipes/useRecipes";
 import { TagChips } from "../../components/recipes/TagChips";
 import { RecipeGroup } from "../../components/recipes/RecipeGroup";
 

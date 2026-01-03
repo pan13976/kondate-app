@@ -7,7 +7,7 @@ import { MonthCalendar } from "../../components/kondate/MonthCalendar";
 import DayDetailModal from "../../components/kondate/DayDetailModal";
 import NutritionPanel from "../../components/kondate/NutritionPanel";
 
-import { useWeekKondates } from "../../hooks/useWeekKondates";
+import { useWeekKondates } from "../../hooks/kondates/useWeekKondates";
 
 /**
  * YYYY-MM-DD に整形（Supabase の meal_date と同形式）

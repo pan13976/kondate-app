@@ -1,6 +1,6 @@
 // src/lib/recipesApi.ts
-import { supabase } from "./supabaseClient";
-import type { ApiRecipe } from "../types/recipe";
+import { supabase } from "../supabaseClient";
+import type { ApiRecipe } from "../../types/recipe";
 export type RecipeListItem = {
   id: string;
   title: string;
