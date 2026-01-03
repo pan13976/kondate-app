@@ -41,3 +41,26 @@ export async function PUT(
 
   return NextResponse.json({ kondate: data });
 }
+
+
+// ...（既存のPUTはそのまま）...
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const numId = Number(id);
+
+  if (!Number.isFinite(numId)) {
+    return NextResponse.json({ message: "invalid id" }, { status: 400 });
+  }
+
+  const { error } = await supabase.from("kondates").delete().eq("id", numId);
+
+  if (error) {
+    return NextResponse.json({ message: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true });
+}

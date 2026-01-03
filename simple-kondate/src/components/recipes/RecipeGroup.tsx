@@ -6,12 +6,14 @@ import { RecipeCard } from "./RecipeCard";
 export function RecipeGroup({
   tag,
   items,
+  onUse,
   collapsible,
   isOpen,
   onToggle,
 }: {
   tag: string;
   items: Recipe[];
+  onUse: (recipeId: string) => void;
   collapsible: boolean;
   isOpen: boolean;
   onToggle: () => void;
@@ -55,7 +57,7 @@ export function RecipeGroup({
         <div style={{ padding: "0 12px 12px 12px" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
             {items.map((r) => (
-              <RecipeCard key={r.id} recipe={r} />
+              <RecipeCard key={r.id} recipe={r} onUse={onUse} />
             ))}
           </div>
         </div>

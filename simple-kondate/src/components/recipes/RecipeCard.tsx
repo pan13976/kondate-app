@@ -1,9 +1,18 @@
 // src/components/recipes/RecipeCard.tsx
 "use client";
 
+import { useRouter } from "next/navigation";
 import type { Recipe } from "../../types/recipe";
 
-export function RecipeCard({ recipe }: { recipe: Recipe }) {
+export function RecipeCard({
+  recipe,
+  onUse,
+}: {
+  recipe: Recipe;
+  onUse: (recipeId: string) => void;
+}) {
+  const router = useRouter();
+
   return (
     <div
       style={{
@@ -39,20 +48,35 @@ export function RecipeCard({ recipe }: { recipe: Recipe }) {
       </div>
 
       <div style={{ marginTop: 10, display: "flex", gap: 16, fontSize: 13 }}>
-        <a
-          href={`/recipes/${recipe.id}`}
-          style={{ color: "#1f5fa5", fontWeight: 800, textDecoration: "none" }}
+        <button
+          type="button"
+          onClick={() => router.push(`/recipes/${recipe.id}`)}
+          style={{
+            padding: 0,
+            border: "none",
+            background: "transparent",
+            color: "#1f5fa5",
+            fontWeight: 800,
+            cursor: "pointer",
+          }}
         >
           詳細を見る →
-        </a>
+        </button>
 
-        {/* ★ 有効化 */}
-        <a
-          href={`/recipes/${recipe.id}?use=1`}
-          style={{ color: "#1f5fa5", fontWeight: 800, textDecoration: "none" }}
+        <button
+          type="button"
+          onClick={() => onUse(recipe.id)}
+          style={{
+            padding: 0,
+            border: "none",
+            background: "transparent",
+            color: "#1f5fa5",
+            fontWeight: 800,
+            cursor: "pointer",
+          }}
         >
           献立に使う
-        </a>
+        </button>
       </div>
     </div>
   );

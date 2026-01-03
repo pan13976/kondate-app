@@ -1,14 +1,10 @@
+// src/hooks/kondates/useWeekKondates.ts
 "use client";
 
 import { useEffect, useState } from "react";
 import type { KondateRow } from "../../types/kondate";
 import { apiFetchKondatesByRange } from "../../lib/kondates/Api";
 
-/**
- * from/to が変わったら、その期間の献立を取得する
- * - loading/error を含めて返す
- * - upsert（モーダル保存反映）もここで提供すると page がさらに薄くなる
- */
 export function useWeekKondates(from: string, to: string) {
   const [kondates, setKondates] = useState<KondateRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,17 +30,11 @@ export function useWeekKondates(from: string, to: string) {
       }
     })();
 
-    // 画面遷移/アンマウント時に state 更新しない保険
     return () => {
       cancelled = true;
     };
   }, [from, to]);
 
-  /**
-   * 保存（追加/更新）の結果を週一覧 state に反映
-   * - 同じidがあれば置換
-   * - 無ければ追加
-   */
   const upsertKondate = (row: KondateRow) => {
     setKondates((prev) => {
       const idx = prev.findIndex((x) => x.id === row.id);
@@ -57,5 +47,10 @@ export function useWeekKondates(from: string, to: string) {
     });
   };
 
-  return { kondates, setKondates, loading, error, upsertKondate };
+  // ★追加：削除反映
+  const removeKondate = (id: number) => {
+    setKondates((prev) => prev.filter((x) => x.id !== id));
+  };
+
+  return { kondates, setKondates, loading, error, upsertKondate, removeKondate };
 }

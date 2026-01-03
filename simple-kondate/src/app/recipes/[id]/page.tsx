@@ -1,54 +1,30 @@
-// src/app/recipes/page.tsx
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 
-import { useRecipes } from "../../../hooks/recipes/useRecipes";
-import { TagChips } from "../../../components/recipes/TagChips";
+import { AddToKondateModal } from "../../../components/recipes/AddToKondateModal";
 
-// ★ここはあなたの指定どおり（Api の A が大文字）
-import { getRecipeById } from "../../../lib/recipes/Api";
+// ★ここは指定どおり（Api の A が大文字）
+import { getRecipeById, type RecipeDetail } from "../../../lib/recipes/Api";
 import type { Category } from "../../../types/kondate";
 
-type RecipeIngredient = { name: string; amount: string };
-
-type RecipeDetail = {
-  id: string;
-  title: string;
-  description?: string | null;
-  timeMinutes?: number | null;
-  servings?: number | null;
-  ingredients: RecipeIngredient[];
-  steps: string[];
-  notes?: string | null;
-  mainCategory?: string | null;
+const circled = (n: number) => {
+  // ①(9312)〜⑳(9331)
+  const code = 9311 + n;
+  return String.fromCharCode(code);
 };
 
-type RecipeListItem = {
-  id: string;
-  title: string;
-  description?: string | null;
-  timeMinutes?: number | null;
-  tags?: string[] | null;
-  mainCategory?: string | null;
-};
+export default function RecipeDetailPage() {
+  const router = useRouter();
+  const params = useParams<{ id: string }>();
+  const id = params?.id;
 
-export default function RecipesPage() {
-  const {
-    loading,
-    errorMsg: listErrorMsg,
-    query,
-    setQuery,
-    selectedTag,
-    setSelectedTag,
-    allTags,
-    filtered,
-    grouped,
-    openTags,
-    toggleGroup,
-  } = useRecipes();
+  const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [recipe, setRecipe] = useState<RecipeDetail | null>(null);
 
-  // ===== 献立に追加（一覧から） =====
+  // ===== 献立に追加（モーダル） =====
   const todayYmd = useMemo(() => {
     const d = new Date();
     const yyyy = d.getFullYear();
@@ -61,35 +37,61 @@ export default function RecipesPage() {
   const [mealDate, setMealDate] = useState(todayYmd);
   const [category, setCategory] = useState<Category>("夜");
   const [adding, setAdding] = useState(false);
-
-  const [selectedRecipe, setSelectedRecipe] = useState<RecipeDetail | null>(null);
   const [actionErrorMsg, setActionErrorMsg] = useState<string | null>(null);
 
-  async function openAddModalByRecipeId(recipeId: string) {
-    try {
-      setActionErrorMsg(null);
+  useEffect(() => {
+    let alive = true;
 
-      // 連打防止（開いてる最中は弾く）
-      if (adding) return;
+    (async () => {
+      try {
+        setLoading(true);
+        setErrorMsg(null);
 
-      // ★詳細画面と同じ前提にするため、材料込みの詳細を取得
-      const detail = await getRecipeById(recipeId);
-      if (!detail) {
-        setActionErrorMsg("レシピが見つかりませんでした");
-        return;
+        if (!id) throw new Error("missing_id");
+
+        const detail = await getRecipeById(id);
+        if (!detail) throw new Error("recipe_not_found");
+
+        if (!alive) return;
+        setRecipe(detail);
+      } catch (e: any) {
+        if (!alive) return;
+        setErrorMsg(String(e?.message ?? e));
+      } finally {
+        if (!alive) return;
+        setLoading(false);
       }
+    })();
 
-      setSelectedRecipe(detail as any);
-      setOpenAdd(true);
+    return () => {
+      alive = false;
+    };
+  }, [id]);
+
+  async function onDelete() {
+    if (!id) return;
+    const ok = confirm("このレシピを削除します。よろしいですか？");
+    if (!ok) return;
+
+    try {
+      setLoading(true);
+      setErrorMsg(null);
+
+      const res = await fetch(`/api/recipes/${id}`, { method: "DELETE" });
+      const data = (await res.json().catch(() => null)) as any;
+      if (!res.ok) throw new Error(data?.error ?? `failed (status=${res.status})`);
+
+      router.push("/recipes");
     } catch (e: any) {
-      setActionErrorMsg(String(e?.message ?? e));
+      setErrorMsg(String(e?.message ?? e));
+    } finally {
+      setLoading(false);
     }
   }
 
-  async function onAddToKondate() {
-    if (!selectedRecipe) return;
+  async function addToKondate() {
+    if (!recipe) return;
     if (adding) return;
-
     if (!mealDate) {
       alert("日付を選択してください");
       return;
@@ -103,22 +105,19 @@ export default function RecipesPage() {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          title: selectedRecipe.title,
-          category, // "朝" | "昼" | "夜" | "弁当"
+          title: recipe.title,
+          category,
           meal_date: mealDate,
-          recipe_id: selectedRecipe.id,
-          ingredients: selectedRecipe.ingredients, // ★材料も同時に入れる
+          recipe_id: recipe.id,
+          ingredients: recipe.ingredients,
         }),
       });
 
       const data = (await res.json().catch(() => null)) as any;
-      if (!res.ok) {
-        throw new Error(data?.error ?? `failed (status=${res.status})`);
-      }
+      if (!res.ok) throw new Error(data?.error ?? `failed (status=${res.status})`);
 
-      // 成功：献立へ
       setOpenAdd(false);
-      location.href = "/kondates";
+      router.push("/kondates");
     } catch (e: any) {
       setActionErrorMsg(String(e?.message ?? e));
     } finally {
@@ -126,181 +125,40 @@ export default function RecipesPage() {
     }
   }
 
-  /* ===== 画面共通スタイル ===== */
-  const cardStyle: React.CSSProperties = {
-    background: "rgba(255,255,255,0.75)",
-    border: "1px solid rgba(0,0,0,0.08)",
-    borderRadius: 16,
-    padding: 14,
-    boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
-    backdropFilter: "blur(6px)",
-  };
-
-  const groupHeaderStyle: React.CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-    padding: "10px 12px",
-    borderRadius: 14,
-    background: "rgba(255,255,255,0.65)",
-    border: "1px solid rgba(0,0,0,0.06)",
-    fontWeight: 900,
-  };
-
-  const recipeCardStyle: React.CSSProperties = {
-    background: "rgba(255,255,255,0.85)",
-    border: "1px solid rgba(0,0,0,0.06)",
-    borderRadius: 16,
-    padding: 14,
-    boxShadow: "0 8px 20px rgba(0,0,0,0.06)",
-  };
-
-  const chipStyle = (bg: string): React.CSSProperties => ({
-    fontSize: 12,
-    padding: "4px 8px",
-    borderRadius: 999,
-    background: bg,
-    border: "1px solid rgba(0,0,0,0.08)",
-    fontWeight: 900,
-    whiteSpace: "nowrap",
-  });
-
-  // モーダル（スマホ前提：下から出る）
-  const overlayStyle: React.CSSProperties = {
-    position: "fixed",
-    inset: 0,
-    background: "rgba(0,0,0,0.35)",
-    display: "flex",
-    alignItems: "flex-end",
-    justifyContent: "center",
-    padding: 12,
-    zIndex: 50,
-  };
-
-  const modalStyle: React.CSSProperties = {
-    width: "100%",
-    maxWidth: 520,
-    borderRadius: 16,
-    background: "rgba(255,255,255,0.92)",
-    border: "1px solid rgba(0,0,0,0.10)",
-    boxShadow: "0 12px 40px rgba(0,0,0,0.18)",
-    padding: 14,
-    backdropFilter: "blur(8px)",
-  };
-
-  const labelStyle: React.CSSProperties = {
-    fontSize: 12,
-    fontWeight: 900,
-    color: "#444",
-    marginBottom: 6,
-  };
-
-  const inputStyle: React.CSSProperties = {
-    width: "100%",
-    padding: "10px 12px",
-    borderRadius: 12,
-    border: "1px solid rgba(0,0,0,0.12)",
-    background: "rgba(255,255,255,0.9)",
-    fontWeight: 800,
-    outline: "none",
-  };
-
-  const primaryBtnStyle: React.CSSProperties = {
-    width: "100%",
-    padding: "12px 16px",
-    borderRadius: 14,
-    border: "1px solid rgba(0,0,0,0.10)",
-    background: "rgba(200,247,220,0.75)",
-    fontWeight: 900,
-    cursor: adding ? "not-allowed" : "pointer",
-  };
-
-  const cancelBtnStyle: React.CSSProperties = {
-    width: "100%",
-    padding: "12px 16px",
-    borderRadius: 14,
-    border: "1px solid rgba(0,0,0,0.10)",
-    background: "rgba(255,255,255,0.85)",
-    fontWeight: 900,
-    cursor: adding ? "not-allowed" : "pointer",
-  };
-
   return (
     <main style={{ maxWidth: 980, margin: "0 auto", padding: 16 }}>
       <header style={{ marginBottom: 12 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 900, marginBottom: 6 }}>レシピ</h1>
-        <p style={{ color: "#555", fontSize: 14 }}>タグでカテゴリ分けして探しやすくします。</p>
+        <button
+          type="button"
+          onClick={() => router.push("/recipes")}
+          style={{
+            border: "none",
+            background: "transparent",
+            color: "#1f5fa5",
+            fontWeight: 900,
+            padding: 0,
+            cursor: "pointer",
+          }}
+        >
+          ← レシピ一覧へ
+        </button>
       </header>
 
-      {/* ＋ レシピを追加 */}
-      <div style={{ marginBottom: 12 }}>
-        <a
-          href="/recipes/new"
-          style={{
-            display: "block",
-            width: "100%",
-            padding: "12px 16px",
-            borderRadius: 14,
-            border: "1px solid rgba(0,0,0,0.12)",
-            background: "rgba(179,229,255,0.85)",
-            fontWeight: 900,
-            textAlign: "center",
-            textDecoration: "none",
-            color: "#222",
-          }}
-        >
-          ＋ レシピを追加
-        </a>
-      </div>
-
-      {/* 検索 */}
-      <div style={{ marginBottom: 10 }}>
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="検索（例：唐揚げ / 作り置き / 野菜）"
-          style={{
-            width: "100%",
-            padding: "12px 14px",
-            borderRadius: 14,
-            border: "1px solid rgba(0,0,0,0.12)",
-            outline: "none",
-            fontSize: 14,
-          }}
-        />
-      </div>
-
-      {/* タグチップ */}
-      <div style={{ marginBottom: 12 }}>
-        <TagChips tags={allTags} selectedTag={selectedTag} onSelect={setSelectedTag} />
-      </div>
-
-      {/* 一覧取得エラー（useRecipes由来） */}
-      {listErrorMsg && (
+      {loading ? (
         <div
           style={{
             padding: 14,
             borderRadius: 16,
-            background: "rgba(255,230,230,0.75)",
+            background: "rgba(255,255,255,0.75)",
             border: "1px solid rgba(0,0,0,0.06)",
-            color: "#a11",
-            marginBottom: 12,
-            fontSize: 13,
-            fontWeight: 700,
+            color: "#555",
           }}
         >
-          取得エラー：{listErrorMsg}
+          読み込み中…
         </div>
-      )}
+      ) : null}
 
-      {/* 一覧ロード中 */}
-      {loading && (
-        <div style={{ ...cardStyle, color: "#555", marginBottom: 12 }}>読み込み中…</div>
-      )}
-
-      {/* アクション（献立追加）側のエラー */}
-      {actionErrorMsg && (
+      {errorMsg ? (
         <div
           style={{
             padding: 14,
@@ -308,275 +166,231 @@ export default function RecipesPage() {
             background: "rgba(255,230,230,0.75)",
             border: "1px solid rgba(0,0,0,0.06)",
             color: "#a11",
-            marginBottom: 12,
             fontSize: 13,
             fontWeight: 800,
           }}
         >
-          エラー：{actionErrorMsg}
+          エラー：{errorMsg}
         </div>
-      )}
+      ) : null}
 
-      {!loading && filtered.length === 0 ? (
-        <div
+      {!loading && recipe ? (
+        <section
           style={{
-            padding: 20,
+            background: "rgba(255,255,255,0.78)",
+            border: "1px solid rgba(0,0,0,0.08)",
             borderRadius: 16,
-            background: "rgba(255,255,255,0.75)",
-            border: "1px dashed rgba(0,0,0,0.2)",
-            color: "#555",
+            padding: 14,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
+            backdropFilter: "blur(6px)",
           }}
         >
-          条件に一致するレシピがありません。
-        </div>
-      ) : (
-        <section style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
-          {Array.from(grouped.entries()).map(([tag, items]) => {
-            const collapsible = selectedTag === "すべて";
-            const isOpen = collapsible ? !!openTags[tag] : true;
+          <div style={{ fontSize: 22, fontWeight: 900 }}>{recipe.title}</div>
+          {recipe.description ? (
+            <div style={{ marginTop: 6, color: "#555", fontSize: 14, lineHeight: 1.5 }}>{recipe.description}</div>
+          ) : null}
 
-            return (
-              <section key={tag} style={{ display: "grid", gap: 10 }}>
-                {/* グループヘッダー */}
-                <div style={groupHeaderStyle}>
-                  <div>
-                    {tag} <span style={{ opacity: 0.7 }}>（{items.length}）</span>
-                  </div>
-                  {collapsible ? (
-                    <button
-                      type="button"
-                      onClick={() => toggleGroup(tag)}
-                      style={{
-                        border: "none",
-                        background: "transparent",
-                        fontWeight: 900,
-                        cursor: "pointer",
-                        color: "#333",
-                      }}
-                      aria-label="toggle"
-                    >
-                      {isOpen ? "−" : "＋"}
-                    </button>
-                  ) : (
-                    <span style={{ opacity: 0.6 }}>−</span>
-                  )}
-                </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+            {recipe.mainCategory ? (
+              <span
+                style={{
+                  fontSize: 12,
+                  padding: "4px 8px",
+                  borderRadius: 999,
+                  background: "rgba(179,229,255,0.55)",
+                  border: "1px solid rgba(0,0,0,0.08)",
+                  fontWeight: 900,
+                }}
+              >
+                {recipe.mainCategory}
+              </span>
+            ) : null}
+            {recipe.timeMinutes ? (
+              <span
+                style={{
+                  fontSize: 12,
+                  padding: "4px 8px",
+                  borderRadius: 999,
+                  background: "rgba(200,247,220,0.6)",
+                  border: "1px solid rgba(0,0,0,0.08)",
+                  fontWeight: 900,
+                }}
+              >
+                ⏱ {recipe.timeMinutes}分
+              </span>
+            ) : null}
+            {recipe.servings ? (
+              <span
+                style={{
+                  fontSize: 12,
+                  padding: "4px 8px",
+                  borderRadius: 999,
+                  background: "rgba(255,240,200,0.65)",
+                  border: "1px solid rgba(0,0,0,0.08)",
+                  fontWeight: 900,
+                }}
+              >
+                👥 {recipe.servings}人分
+              </span>
+            ) : null}
+          </div>
 
-                {/* グループ中身 */}
-                {isOpen && (
-                  <div style={{ display: "grid", gap: 12 }}>
-                    {(items as unknown as RecipeListItem[]).map((r) => (
-                      <div key={r.id} style={recipeCardStyle}>
-                        <div style={{ fontSize: 16, fontWeight: 900 }}>{r.title}</div>
+          {/* アクション */}
+          <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
+            <button
+              type="button"
+              onClick={() => {
+                setActionErrorMsg(null);
+                setOpenAdd(true);
+              }}
+              style={{
+                width: "100%",
+                padding: "12px 16px",
+                borderRadius: 14,
+                border: "1px solid rgba(0,0,0,0.10)",
+                background: "rgba(200,247,220,0.75)",
+                fontWeight: 900,
+              }}
+            >
+              🍱 献立に使う
+            </button>
 
-                        {r.description ? (
-                          <div
-                            style={{
-                              marginTop: 4,
-                              color: "#555",
-                              fontSize: 13,
-                              lineHeight: 1.5,
-                            }}
-                          >
-                            {r.description}
-                          </div>
-                        ) : null}
-
-                        {/* チップ */}
-                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
-                          {r.timeMinutes ? (
-                            <span style={chipStyle("rgba(200,247,220,0.6)")}>
-                              ⏱ {r.timeMinutes}分
-                            </span>
-                          ) : null}
-
-                          {r.mainCategory ? (
-                            <span style={chipStyle("rgba(240,240,240,0.9)")}>
-                              📌 {r.mainCategory}
-                            </span>
-                          ) : null}
-
-                          {(r.tags ?? []).slice(0, 4).map((t) => (
-                            <span key={t} style={chipStyle("rgba(179,229,255,0.6)")}>
-                              {t}
-                            </span>
-                          ))}
-                        </div>
-
-                        {/* 操作 */}
-                        <div style={{ marginTop: 10, display: "flex", gap: 16, fontSize: 13 }}>
-                          <a
-                            href={`/recipes/${r.id}`}
-                            style={{
-                              color: "#1f5fa5",
-                              fontWeight: 800,
-                              textDecoration: "none",
-                            }}
-                          >
-                            詳細を見る →
-                          </a>
-
-                          {/* ★ここが「詳細画面と同じロジック」で献立に追加 */}
-                          <button
-                            type="button"
-                            onClick={() => openAddModalByRecipeId(r.id)}
-                            style={{
-                              border: "none",
-                              background: "transparent",
-                              color: "#1f5fa5",
-                              fontWeight: 800,
-                              padding: 0,
-                              cursor: "pointer",
-                            }}
-                          >
-                            献立に使う
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </section>
-            );
-          })}
-        </section>
-      )}
-
-      <footer style={{ marginTop: 20 }}>
-        <a href="/main" style={{ color: "#1f5fa5", fontWeight: 800, textDecoration: "none" }}>
-          ← メインメニューへ戻る
-        </a>
-      </footer>
-
-      {/* ===== 献立に追加：モーダル ===== */}
-      {openAdd && selectedRecipe && (
-        <div
-          style={overlayStyle}
-          onClick={() => {
-            if (!adding) setOpenAdd(false);
-          }}
-        >
-          <div
-            style={modalStyle}
-            onClick={(e) => {
-              e.stopPropagation();
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-              <div style={{ fontWeight: 900, fontSize: 16 }}>献立に追加</div>
+            <div style={{ display: "flex", gap: 10 }}>
               <button
                 type="button"
-                onClick={() => setOpenAdd(false)}
-                disabled={adding}
+                onClick={() => router.push(`/recipes/${recipe.id}/edit`)}
                 style={{
+                  flex: 1,
+                  padding: "12px 16px",
+                  borderRadius: 14,
                   border: "1px solid rgba(0,0,0,0.10)",
                   background: "rgba(255,255,255,0.85)",
-                  borderRadius: 10,
-                  padding: "6px 10px",
                   fontWeight: 900,
-                  cursor: adding ? "not-allowed" : "pointer",
                 }}
               >
-                ✕
+                編集
               </button>
-            </div>
-
-            <p style={{ marginTop: 10, marginBottom: 0, color: "#555", fontWeight: 800 }}>
-              「{selectedRecipe.title}」を献立に追加します
-            </p>
-
-            <div style={{ marginTop: 12 }}>
-              <div style={labelStyle}>日付</div>
-              <input
-                type="date"
-                value={mealDate}
-                onChange={(e) => setMealDate(e.target.value)}
-                style={inputStyle}
-                disabled={adding}
-              />
-            </div>
-
-            <div style={{ marginTop: 12 }}>
-              <div style={labelStyle}>区分</div>
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value as Category)}
-                style={inputStyle}
-                disabled={adding}
-              >
-                <option value="朝">朝</option>
-                <option value="昼">昼</option>
-                <option value="夜">夜</option>
-                <option value="弁当">弁当</option>
-              </select>
-            </div>
-
-            <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
               <button
                 type="button"
-                onClick={onAddToKondate}
-                disabled={adding}
+                onClick={onDelete}
                 style={{
-                  ...primaryBtnStyle,
-                  opacity: adding ? 0.7 : 1,
+                  flex: 1,
+                  padding: "12px 16px",
+                  borderRadius: 14,
+                  border: "1px solid rgba(0,0,0,0.10)",
+                  background: "rgba(255,230,230,0.85)",
+                  fontWeight: 900,
+                  color: "#a11",
                 }}
               >
-                {adding ? "追加中…" : "追加する"}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setOpenAdd(false)}
-                disabled={adding}
-                style={{
-                  ...cancelBtnStyle,
-                  opacity: adding ? 0.7 : 1,
-                }}
-              >
-                キャンセル
+                削除
               </button>
             </div>
+          </div>
 
-            {/* 材料プレビュー（任意：確認できると安心） */}
-            <div style={{ marginTop: 12, fontSize: 12, color: "#555", fontWeight: 800 }}>
-              材料（{selectedRecipe.ingredients.length}）
-            </div>
-            {selectedRecipe.ingredients.length > 0 ? (
-              <div
-                style={{
-                  marginTop: 8,
-                  maxHeight: 160,
-                  overflow: "auto",
-                  borderRadius: 12,
-                  border: "1px solid rgba(0,0,0,0.08)",
-                  background: "rgba(255,255,255,0.75)",
-                  padding: 10,
-                }}
-              >
-                {selectedRecipe.ingredients.map((ing, idx) => (
+          {/* 材料 */}
+          <div style={{ marginTop: 14 }}>
+            <div style={{ fontWeight: 900, marginBottom: 8 }}>材料</div>
+            {recipe.ingredients.length === 0 ? (
+              <div style={{ color: "#666", fontSize: 13 }}>未登録</div>
+            ) : (
+              <div style={{ display: "grid", gap: 8 }}>
+                {recipe.ingredients.map((ing, idx) => (
                   <div
-                    key={idx}
+                    key={`${ing.name}-${idx}`}
                     style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr auto",
+                      display: "flex",
+                      justifyContent: "space-between",
                       gap: 10,
-                      padding: "6px 0",
-                      borderTop: idx === 0 ? "none" : "1px solid rgba(0,0,0,0.06)",
+                      padding: "10px 12px",
+                      borderRadius: 14,
+                      background: "rgba(255,255,255,0.75)",
+                      border: "1px solid rgba(0,0,0,0.06)",
                     }}
                   >
-                    <div>{ing.name}</div>
-                    <div style={{ fontWeight: 900 }}>{ing.amount}</div>
+                    <div style={{ fontWeight: 900 }}>{ing.name}</div>
+                    <div style={{ color: "#555", fontWeight: 800 }}>{ing.amount}</div>
                   </div>
                 ))}
               </div>
+            )}
+          </div>
+
+          {/* 作り方 */}
+          <div style={{ marginTop: 14 }}>
+            <div style={{ fontWeight: 900, marginBottom: 8 }}>作り方</div>
+            {recipe.steps.length === 0 ? (
+              <div style={{ color: "#666", fontSize: 13 }}>未登録</div>
             ) : (
-              <div style={{ marginTop: 6, fontSize: 12, color: "#777" }}>
-                ※材料が登録されていません
+              <div style={{ display: "grid", gap: 8 }}>
+                {recipe.steps.map((step, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      display: "flex",
+                      gap: 10,
+                      padding: "10px 12px",
+                      borderRadius: 14,
+                      background: "rgba(255,255,255,0.75)",
+                      border: "1px solid rgba(0,0,0,0.06)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        minWidth: 32,
+                        height: 28,
+                        borderRadius: 999,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background: "rgba(179,229,255,0.55)",
+                        border: "1px solid rgba(0,0,0,0.08)",
+                        fontWeight: 900,
+                      }}
+                    >
+                      {circled(idx + 1)}
+                    </div>
+                    <div style={{ lineHeight: 1.5 }}>{step}</div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
-        </div>
-      )}
+
+          {/* メモ */}
+          {recipe.notes ? (
+            <div style={{ marginTop: 14 }}>
+              <div style={{ fontWeight: 900, marginBottom: 8 }}>メモ</div>
+              <div
+                style={{
+                  padding: "10px 12px",
+                  borderRadius: 14,
+                  background: "rgba(255,255,255,0.75)",
+                  border: "1px solid rgba(0,0,0,0.06)",
+                  lineHeight: 1.6,
+                }}
+              >
+                {recipe.notes}
+              </div>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      <AddToKondateModal
+        open={openAdd}
+        recipe={recipe}
+        mealDate={mealDate}
+        setMealDate={setMealDate}
+        category={category}
+        setCategory={setCategory}
+        adding={adding}
+        errorMsg={actionErrorMsg}
+        onClose={() => {
+          if (!adding) setOpenAdd(false);
+        }}
+        onSubmit={addToKondate}
+      />
     </main>
   );
 }

@@ -1,28 +1,18 @@
 // src/lib/kondatesApi.ts
 
-import type {
-  ApiErrorResponse,
-  DeleteKondatesResponse,
-  GetKondatesResponse,
-  KondateRow,
-  PostKondatesResponse,
-  Category,
-} from "../../types/kondate";
+import type { ApiErrorResponse, DeleteKondatesResponse, GetKondatesResponse, KondateRow, Category } from "../../types/kondate";
+
+// 追加：材料型（kondates.ingredients のスナップショット用）
+export type Ingredient = { name: string; amount: string };
 
 /**
- * API呼び出しはここに集約する。
- * - page.tsx や hook から fetch を消せる
- * - エラーハンドリングの形を統一できる
- *
- * ポイント：
- * - 失敗時は throw する（呼び出し側で try/catch しやすい）
- * - 成功時の型を固定する（レスポンス崩れを検知しやすい）
+ * API呼び出しはここに集約する
+ * - 失敗時は throw
+ * - 成功時の型を固定
  */
 async function readJsonOrEmpty<T>(res: Response): Promise<T | {}> {
-  // JSONが返らないケースでも落ちないようにする保険
   return (await res.json().catch(() => ({}))) as T | {};
 }
-
 
 /**
  * 指定した日付範囲（from〜to）の献立を取得する
@@ -44,43 +34,6 @@ export async function apiFetchKondatesByRange(from: string, to: string): Promise
   return json.kondates ?? [];
 }
 
-export async function apiCreateKondate(input: {
-  title: string;
-  category: string;
-  meal_date: string;
-  ingredients: Ingredient[]; // ★追加
-}): Promise<KondateRow> {
-  const res = await fetch("/api/kondates", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-
-  const json = await res.json();
-  if (!res.ok) throw new Error(json?.message ?? "追加に失敗しました");
-
-  return json.kondate as KondateRow;
-}
-
-// 追加：材料型（types/kondate.ts にあるなら import してOK）
-type Ingredient = { name: string; amount: string };
-
-export async function apiUpdateKondate(
-  id: number,
-  input: { title: string; ingredients: Ingredient[] } // ★ingredients を追加
-): Promise<KondateRow> {
-  const res = await fetch(`/api/kondates/${id}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-
-  const json = await res.json();
-  if (!res.ok) throw new Error(json?.message ?? "更新に失敗しました");
-
-  return json.kondate as KondateRow;
-}
-
 /** GET /api/kondates */
 export async function apiGetKondates(): Promise<KondateRow[]> {
   const res = await fetch("/api/kondates", { cache: "no-store" });
@@ -94,30 +47,77 @@ export async function apiGetKondates(): Promise<KondateRow[]> {
   return body.kondates;
 }
 
-/** POST /api/kondates */
 /**
- * 新規追加API
- * - meal_date は "YYYY-MM-DD" を想定（HTML date input の値）
+ * POST /api/kondates
+ * - recipe_id は「レシピ由来」なら入る。手入力は null / undefined でOK。
+ * - ingredients はスナップショット保存用（任意）
  */
-export async function apiAddKondate(input: {
+export async function apiCreateKondate(input: {
   title: string;
   category: Category;
-  meal_date: string; // ★追加
+  meal_date: string;
+  ingredients?: Ingredient[]; // 任意
+  recipe_id?: string | null;  // ★任意（null可）
 }): Promise<KondateRow> {
   const res = await fetch("/api/kondates", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
+    body: JSON.stringify({
+      ...input,
+      ingredients: input.ingredients ?? [],
+      recipe_id: input.recipe_id ?? null,
+    }),
   });
 
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`POST /api/kondates failed: ${res.status} ${text}`);
-  }
+  const json = await res.json().catch(() => ({} as any));
+  if (!res.ok) throw new Error(json?.message ?? "追加に失敗しました");
 
-  const json = (await res.json()) as { kondate: KondateRow };
-  return json.kondate;
+  return (json.kondate ?? json) as KondateRow;
 }
+
+/**
+ * PUT /api/kondates/:id
+ * - 画面側（DayDetailModal）が渡す形に合わせる
+ * - recipe_id は維持したい場合に渡す（未指定ならサーバ側で現状維持にするのが理想）
+ */
+export async function apiUpdateKondate(
+  id: number,
+  input: {
+    title: string;
+    category?: Category;
+    meal_date?: string;
+    ingredients?: Ingredient[];
+    recipe_id?: string | null;
+  }
+): Promise<KondateRow> {
+  const res = await fetch(`/api/kondates/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ...input,
+      ingredients: input.ingredients ?? [],
+      // recipe_id は「送らない」=維持したいケースがあるので、ここでは勝手に null を入れない
+    }),
+  });
+
+  const json = await res.json().catch(() => ({} as any));
+  if (!res.ok) throw new Error(json?.message ?? "更新に失敗しました");
+
+  return (json.kondate ?? json) as KondateRow;
+}
+
+/**
+ * 互換：以前の apiAddKondate を使ってる箇所があっても壊れないように残す
+ * （内部で apiCreateKondate を呼ぶ）
+ */
+export async function apiAddKondate(input: {
+  title: string;
+  category: Category;
+  meal_date: string;
+}): Promise<KondateRow> {
+  return apiCreateKondate(input);
+}
+
 /** DELETE /api/kondates/:id */
 export async function apiDeleteKondate(id: number): Promise<void> {
   const res = await fetch(`/api/kondates/${id}`, { method: "DELETE" });
@@ -127,6 +127,5 @@ export async function apiDeleteKondate(id: number): Promise<void> {
     throw new Error(body.message ?? "API error (DELETE /api/kondates/:id)");
   }
 
-  // 返却は { ok: true } だが、呼び出し側は結果を使わないので void でOK
   await res.json().catch(() => ({} as DeleteKondatesResponse));
 }
