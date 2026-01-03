@@ -1,226 +1,81 @@
-export default function Home() {
-  const today = new Date();
-  const ymd = today.toLocaleDateString("ja-JP", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    weekday: "short",
-  });
+// src/app/main/page.tsx
+"use client";
 
+export default function MainMenuPage() {
   return (
-    <main style={{ maxWidth: 980, margin: "0 auto", padding: 20 }}>
-      {/* ヒーロー */}
-      <header
-        style={{
-          borderRadius: 16,
-          padding: 18,
-          background: "rgba(255,255,255,0.75)",
-          boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
-          backdropFilter: "blur(8px)",
-          marginBottom: 16,
-        }}
-      >
-        <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-          <div
-            aria-hidden
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: 14,
-              display: "grid",
-              placeItems: "center",
-              background: "linear-gradient(135deg, #b3e5ff 0%, #c8f7dc 100%)",
-              fontSize: 22,
-            }}
-          >
-            🏠
-          </div>
-
-          <div style={{ flex: 1 }}>
-            <div style={{ color: "#555", fontSize: 13 }}>{ymd}</div>
-            <h1 style={{ fontSize: 22, fontWeight: 900, margin: "4px 0 0" }}>
-              家族アプリ
-            </h1>
-            <p
-              style={{
-                margin: "6px 0 0",
-                color: "#555",
-                fontSize: 14,
-                lineHeight: 1.5,
-              }}
-            >
-              献立とレシピをまとめて管理。材料と栄養もさっと確認できます。
-            </p>
-          </div>
-        </div>
+    <main style={{ maxWidth: 980, margin: "0 auto", padding: 16 }}>
+      {/* ===== タイトル ===== */}
+      <header style={{ marginBottom: 20 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 900 }}>メインメニュー</h1>
+        <p style={{ color: "#555", marginTop: 6 }}>
+          使いたい機能を選んでください
+        </p>
       </header>
 
-      {/* メニューカード */}
+      {/* ===== メニューカード ===== */}
       <section
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-          gap: 14,
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: 16,
         }}
       >
-        {/* 献立 */}
+        {/* 🍱 献立 */}
         <a
           href="/kondates"
-          style={{
-            textDecoration: "none",
-            color: "inherit",
-            borderRadius: 16,
-            padding: 16,
-            background: "rgba(255,255,255,0.85)",
-            boxShadow: "0 10px 24px rgba(0,0,0,0.06)",
-            border: "1px solid rgba(0,0,0,0.06)",
-            display: "block",
-          }}
+          style={cardStyle}
         >
-          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-            <div
-              aria-hidden
-              style={{
-                width: 46,
-                height: 46,
-                borderRadius: 16,
-                display: "grid",
-                placeItems: "center",
-                background: "linear-gradient(135deg, #ffd6a5 0%, #bde0fe 100%)",
-                fontSize: 22,
-              }}
-            >
-              🍱
+          <div style={{ fontSize: 34 }}>🍱</div>
+          <div>
+            <div style={cardTitleStyle}>献立</div>
+            <div style={cardDescStyle}>
+              月カレンダーで献立を管理
             </div>
-
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 16, fontWeight: 900 }}>献立</div>
-              <div style={{ color: "#555", fontSize: 13, marginTop: 4 }}>
-                月表示・材料入力・栄養計算
-              </div>
-            </div>
-
-            <div aria-hidden style={{ color: "#777", fontSize: 18 }}>
-              →
-            </div>
-          </div>
-
-          <div
-            style={{
-              marginTop: 12,
-              display: "flex",
-              gap: 8,
-              flexWrap: "wrap",
-            }}
-          >
-            {["朝/昼/夜/弁当", "カテゴリ選択", "USDA栄養"].map((t) => (
-              <span
-                key={t}
-                style={{
-                  fontSize: 12,
-                  color: "#345",
-                  background: "rgba(179,229,255,0.5)",
-                  padding: "4px 8px",
-                  borderRadius: 999,
-                  border: "1px solid rgba(0,0,0,0.06)",
-                }}
-              >
-                {t}
-              </span>
-            ))}
           </div>
         </a>
 
-        {/* ★ レシピ（新規） */}
+        {/* 📖 レシピ */}
         <a
           href="/recipes"
-          style={{
-            textDecoration: "none",
-            color: "inherit",
-            borderRadius: 16,
-            padding: 16,
-            background: "rgba(255,255,255,0.85)",
-            boxShadow: "0 10px 24px rgba(0,0,0,0.06)",
-            border: "1px solid rgba(0,0,0,0.06)",
-            display: "block",
-          }}
+          style={cardStyle}
         >
-          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-            <div
-              aria-hidden
-              style={{
-                width: 46,
-                height: 46,
-                borderRadius: 16,
-                display: "grid",
-                placeItems: "center",
-                background: "linear-gradient(135deg, #c8f7dc 0%, #ffe29a 100%)",
-                fontSize: 22,
-              }}
-            >
-              🍳
+          <div style={{ fontSize: 34 }}>📖</div>
+          <div>
+            <div style={cardTitleStyle}>レシピ</div>
+            <div style={cardDescStyle}>
+              レシピの登録・編集・検索
             </div>
-
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 16, fontWeight: 900 }}>レシピ</div>
-              <div style={{ color: "#555", fontSize: 13, marginTop: 4 }}>
-                レシピ登録・検索（準備中）
-              </div>
-            </div>
-
-            <div aria-hidden style={{ color: "#777", fontSize: 18 }}>
-              →
-            </div>
-          </div>
-
-          <div
-            style={{
-              marginTop: 12,
-              display: "flex",
-              gap: 8,
-              flexWrap: "wrap",
-            }}
-          >
-            {["お気に入り", "材料メモ", "献立に流用"].map((t) => (
-              <span
-                key={t}
-                style={{
-                  fontSize: 12,
-                  color: "#345",
-                  background: "rgba(200,247,220,0.55)",
-                  padding: "4px 8px",
-                  borderRadius: 999,
-                  border: "1px solid rgba(0,0,0,0.06)",
-                }}
-              >
-                {t}
-              </span>
-            ))}
           </div>
         </a>
-
-        {/* 将来の拡張用ダミーカード */}
-        <div
-          style={{
-            borderRadius: 16,
-            padding: 16,
-            background: "rgba(255,255,255,0.6)",
-            border: "1px dashed rgba(0,0,0,0.15)",
-          }}
-        >
-          <div style={{ fontWeight: 900, fontSize: 16 }}>今後追加</div>
-          <div
-            style={{
-              color: "#555",
-              fontSize: 13,
-              marginTop: 6,
-              lineHeight: 1.6,
-            }}
-          >
-            例：買い物リスト、冷蔵庫メモ、家族タスクなど。
-          </div>
-        </div>
       </section>
     </main>
   );
 }
+
+/* ===== 共通スタイル ===== */
+
+const cardStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 14,
+  alignItems: "center",
+  padding: "18px 16px",
+  borderRadius: 18,
+  background: "rgba(255,255,255,0.8)",
+  border: "1px solid rgba(0,0,0,0.08)",
+  boxShadow: "0 10px 28px rgba(0,0,0,0.08)",
+  backdropFilter: "blur(6px)",
+  textDecoration: "none",
+  color: "#111",
+  fontWeight: 900,
+};
+
+const cardTitleStyle: React.CSSProperties = {
+  fontSize: 18,
+  fontWeight: 900,
+};
+
+const cardDescStyle: React.CSSProperties = {
+  fontSize: 13,
+  color: "#555",
+  marginTop: 4,
+};

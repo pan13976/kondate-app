@@ -82,6 +82,20 @@ export default function Page() {
   return (
     <main style={{ maxWidth: 980, margin: "0 auto", padding: 16 }}>
       {/* ヘッダー（月移動つき） */}
+<a
+  href="/main"
+  style={{
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    fontWeight: 800,
+    color: "#1f5fa5",
+    textDecoration: "none",
+    padding: "6px 0",
+  }}
+>
+  ← メインメニューへ
+</a>
       <div
         style={{
           display: "flex",
