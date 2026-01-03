@@ -28,8 +28,14 @@ type ApiRecipeDetail = {
   servings?: number | null;
   steps?: string[] | null;
   notes?: string | null;
-  // recipe_ingredients を返す実装にした場合のみ
   ingredients?: { name: string; amount: string }[] | null;
+};
+
+const circled = (n: number) => {
+  // ①(9312)〜⑳(9331)
+  const code = 9311 + n;
+  if (n >= 1 && n <= 20) return String.fromCharCode(code);
+  return String(n);
 };
 
 export default function RecipeDetailPage() {
@@ -114,6 +120,70 @@ export default function RecipeDetailPage() {
     );
   }
 
+  /* ===== 共通カードスタイル ===== */
+  const cardStyle: React.CSSProperties = {
+    background: "rgba(255,255,255,0.75)",
+    border: "1px solid rgba(0,0,0,0.08)",
+    borderRadius: 16,
+    padding: 14,
+    boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
+    backdropFilter: "blur(6px)",
+  };
+
+  const cardTitleStyle: React.CSSProperties = {
+    fontSize: 18,
+    fontWeight: 900,
+    marginBottom: 10,
+  };
+
+  // 材料（2列）1行スタイル
+  const ingRowStyle: React.CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: "1fr auto",
+    gap: 12,
+    padding: "10px 6px",
+    borderTop: "1px solid rgba(0,0,0,0.06)",
+    alignItems: "center",
+  };
+
+  const ingNameStyle: React.CSSProperties = {
+    fontWeight: 800,
+    lineHeight: 1.4,
+  };
+
+  const ingAmountStyle: React.CSSProperties = {
+    fontWeight: 800,
+    fontSize: 13,
+    padding: "4px 10px",
+    borderRadius: 999,
+    background: "rgba(179,229,255,0.45)",
+    whiteSpace: "nowrap",
+  };
+
+  // 手順（①②③チップ）行スタイル
+  const stepRowStyle: React.CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: "auto 1fr",
+    gap: 10,
+    padding: "10px 6px",
+    borderTop: "1px solid rgba(0,0,0,0.06)",
+    alignItems: "start",
+  };
+
+  const stepChipStyle: React.CSSProperties = {
+    minWidth: 34,
+    height: 28,
+    padding: "0 10px",
+    borderRadius: 999,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontWeight: 900,
+    fontSize: 13,
+    background: "rgba(200,247,220,0.55)",
+    border: "1px solid rgba(0,0,0,0.06)",
+  };
+
   return (
     <main style={{ maxWidth: 980, margin: "0 auto", padding: 16 }}>
       {/* ===== ヘッダー ===== */}
@@ -171,45 +241,59 @@ export default function RecipeDetailPage() {
         </button>
       </section>
 
-      {/* ===== 材料 ===== */}
-      <section style={{ marginBottom: 20 }}>
-        <h2 style={{ fontSize: 18, fontWeight: 900, marginBottom: 8 }}>材料</h2>
+      {/* ===== 材料（2列） ===== */}
+      <section style={{ ...cardStyle, marginBottom: 14 }}>
+        <h2 style={cardTitleStyle}>材料</h2>
 
         {recipe.ingredients.length === 0 ? (
           <p style={{ color: "#555" }}>材料データが未登録です。</p>
         ) : (
-          <ul style={{ paddingLeft: 16 }}>
+          <div style={{ borderRadius: 12, overflow: "hidden" }}>
             {recipe.ingredients.map((ing, idx) => (
-              <li key={idx} style={{ marginBottom: 6 }}>
-                {ing.name}（{ing.amount}）
-              </li>
+              <div
+                key={idx}
+                style={{
+                  ...ingRowStyle,
+                  borderTop: idx === 0 ? "none" : ingRowStyle.borderTop,
+                }}
+              >
+                <div style={ingNameStyle}>{ing.name}</div>
+                <div style={ingAmountStyle}>{ing.amount}</div>
+              </div>
             ))}
-          </ul>
+          </div>
         )}
       </section>
 
-      {/* ===== 作り方 ===== */}
-      <section style={{ marginBottom: 20 }}>
-        <h2 style={{ fontSize: 18, fontWeight: 900, marginBottom: 8 }}>作り方</h2>
+      {/* ===== 作り方（①②③チップ） ===== */}
+      <section style={{ ...cardStyle, marginBottom: 14 }}>
+        <h2 style={cardTitleStyle}>作り方</h2>
 
         {recipe.steps.length === 0 ? (
           <p style={{ color: "#555" }}>手順データが未登録です。</p>
         ) : (
-          <ol style={{ paddingLeft: 18 }}>
+          <div style={{ borderRadius: 12, overflow: "hidden" }}>
             {recipe.steps.map((step, idx) => (
-              <li key={idx} style={{ marginBottom: 8 }}>
-                {step}
-              </li>
+              <div
+                key={idx}
+                style={{
+                  ...stepRowStyle,
+                  borderTop: idx === 0 ? "none" : stepRowStyle.borderTop,
+                }}
+              >
+                <span style={stepChipStyle}>{circled(idx + 1)}</span>
+                <div style={{ lineHeight: 1.75 }}>{step}</div>
+              </div>
             ))}
-          </ol>
+          </div>
         )}
       </section>
 
       {/* ===== メモ ===== */}
       {recipe.notes && (
-        <section style={{ marginBottom: 20 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 900, marginBottom: 8 }}>メモ</h2>
-          <p style={{ color: "#555" }}>{recipe.notes}</p>
+        <section style={{ ...cardStyle, marginBottom: 14 }}>
+          <h2 style={cardTitleStyle}>メモ</h2>
+          <p style={{ color: "#555", lineHeight: 1.6, margin: 0 }}>{recipe.notes}</p>
         </section>
       )}
 
