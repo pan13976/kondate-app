@@ -1,3 +1,4 @@
+// src/app/recipes/[id]/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -32,8 +33,7 @@ type ApiRecipeDetail = {
 };
 
 const circled = (n: number) => {
-  // ①(9312)〜⑳(9331)
-  const code = 9311 + n;
+  const code = 9311 + n; // ①=9312
   if (n >= 1 && n <= 20) return String.fromCharCode(code);
   return String(n);
 };
@@ -46,6 +46,7 @@ export default function RecipeDetailPage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -102,6 +103,32 @@ export default function RecipeDetailPage() {
     };
   }, [id]);
 
+  async function onDelete() {
+    if (!recipe) return;
+    if (deleting) return;
+
+    const ok = confirm("このレシピを削除しますか？（元に戻せません）");
+    if (!ok) return;
+
+    try {
+      setDeleting(true);
+      setErrorMsg(null);
+
+      const res = await fetch(`/api/recipes/${recipe.id}`, { method: "DELETE" });
+      const data = (await res.json().catch(() => null)) as any;
+
+      if (!res.ok) {
+        throw new Error(data?.error ?? `failed (status=${res.status})`);
+      }
+
+      location.href = "/recipes";
+    } catch (e: any) {
+      setErrorMsg(String(e?.message ?? e));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   if (loading) {
     return (
       <main style={{ maxWidth: 980, margin: "0 auto", padding: 16 }}>
@@ -136,7 +163,7 @@ export default function RecipeDetailPage() {
     marginBottom: 10,
   };
 
-  // 材料（2列）1行スタイル
+  // 材料（2列）
   const ingRowStyle: React.CSSProperties = {
     display: "grid",
     gridTemplateColumns: "1fr auto",
@@ -144,11 +171,6 @@ export default function RecipeDetailPage() {
     padding: "10px 6px",
     borderTop: "1px solid rgba(0,0,0,0.06)",
     alignItems: "center",
-  };
-
-  const ingNameStyle: React.CSSProperties = {
-    fontWeight: 800,
-    lineHeight: 1.4,
   };
 
   const ingAmountStyle: React.CSSProperties = {
@@ -160,7 +182,7 @@ export default function RecipeDetailPage() {
     whiteSpace: "nowrap",
   };
 
-  // 手順（①②③チップ）行スタイル
+  // 作り方（①②③チップ）
   const stepRowStyle: React.CSSProperties = {
     display: "grid",
     gridTemplateColumns: "auto 1fr",
@@ -187,7 +209,7 @@ export default function RecipeDetailPage() {
   return (
     <main style={{ maxWidth: 980, margin: "0 auto", padding: 16 }}>
       {/* ===== ヘッダー ===== */}
-      <header style={{ marginBottom: 16 }}>
+      <header style={{ marginBottom: 14 }}>
         <h1 style={{ fontSize: 22, fontWeight: 900 }}>{recipe.title}</h1>
 
         {recipe.description && (
@@ -221,6 +243,50 @@ export default function RecipeDetailPage() {
             </span>
           )}
         </div>
+
+        {/* 編集 / 削除 */}
+        <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+          <a
+            href={`/recipes/${recipe.id}/edit`}
+            style={{
+              padding: "10px 12px",
+              borderRadius: 12,
+              border: "1px solid rgba(0,0,0,0.10)",
+              background: "rgba(179,229,255,0.45)",
+              fontWeight: 900,
+              textDecoration: "none",
+              color: "#1f5fa5",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            ✏️ 編集
+          </a>
+
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={deleting}
+            style={{
+              padding: "10px 12px",
+              borderRadius: 12,
+              border: "1px solid rgba(0,0,0,0.10)",
+              background: "rgba(255,230,230,0.85)",
+              color: "#a11",
+              fontWeight: 900,
+              cursor: deleting ? "not-allowed" : "pointer",
+            }}
+          >
+            {deleting ? "削除中…" : "🗑 削除"}
+          </button>
+        </div>
+
+        {errorMsg && (
+          <p style={{ color: "#a11", fontWeight: 800, marginTop: 10 }}>
+            エラー：{errorMsg}
+          </p>
+        )}
       </header>
 
       {/* ===== 献立に使う（将来） ===== */}
@@ -257,7 +323,7 @@ export default function RecipeDetailPage() {
                   borderTop: idx === 0 ? "none" : ingRowStyle.borderTop,
                 }}
               >
-                <div style={ingNameStyle}>{ing.name}</div>
+                <div style={{ fontWeight: 800, lineHeight: 1.4 }}>{ing.name}</div>
                 <div style={ingAmountStyle}>{ing.amount}</div>
               </div>
             ))}

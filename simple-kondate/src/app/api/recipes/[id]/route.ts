@@ -46,3 +46,68 @@ export async function GET(req: Request) {
         ingredients: (ings ?? []).map((i) => ({ name: i.name, amount: i.amount })),
     });
 }
+
+export async function PUT(req: Request) {
+  const pathname = new URL(req.url).pathname;
+  const id = pathname.split("/").pop();
+
+  if (!id) {
+    return NextResponse.json({ error: "invalid_id" }, { status: 400 });
+  }
+
+  const body = await req.json();
+
+  const { error } = await supabase
+    .from("recipes")
+    .update({
+      title: body.title,
+      description: body.description ?? null,
+      time_minutes: body.timeMinutes ?? null,
+      servings: body.servings ?? null,
+      tags: body.tags ?? [],
+      main_category: body.mainCategory,
+      steps: body.steps ?? [],
+      notes: body.notes ?? null,
+    })
+    .eq("id", id);
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // 材料は一旦全削除 → 再insert（シンプルで安全）
+  await supabase.from("recipe_ingredients").delete().eq("recipe_id", id);
+
+  if (Array.isArray(body.ingredients)) {
+    const rows = body.ingredients.map((i: any, idx: number) => ({
+      recipe_id: id,
+      name: i.name,
+      amount: i.amount,
+      sort_order: idx + 1,
+    }));
+    if (rows.length > 0) {
+      await supabase.from("recipe_ingredients").insert(rows);
+    }
+  }
+
+  return NextResponse.json({ ok: true });
+}
+
+export async function DELETE(req: Request) {
+  const pathname = new URL(req.url).pathname;
+  const id = pathname.split("/").pop();
+
+  if (!id) {
+    return NextResponse.json({ error: "invalid_id" }, { status: 400 });
+  }
+
+  // 子テーブル → 親テーブルの順で削除
+  await supabase.from("recipe_ingredients").delete().eq("recipe_id", id);
+  const { error } = await supabase.from("recipes").delete().eq("id", id);
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true });
+}
