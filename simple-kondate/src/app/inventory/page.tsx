@@ -64,6 +64,13 @@ function safeId(id: unknown): string | null {
   return v;
 }
 
+/**
+ * アコーディオンのキー（kind + category）
+ */
+function catKey(kind: string, category: string) {
+  return `${kind}:::${category}`;
+}
+
 export default function InventoryPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -89,6 +96,9 @@ export default function InventoryPage() {
     unit: string;
     expires: string;
   } | null>(null);
+
+  // ★カテゴリの開閉状態（デフォルトは閉じる）
+  const [openCats, setOpenCats] = useState<Record<string, boolean>>({});
 
   const cats = useMemo(() => (kind === "食材" ? FOOD_CATS : DAILY_CATS), [kind]);
 
@@ -140,6 +150,27 @@ export default function InventoryPage() {
     return map;
   }, [items]);
 
+  /**
+   * カテゴリの開閉（トグル）
+   */
+  function toggleCategory(kind: string, category: string) {
+    const key = catKey(kind, category);
+    setOpenCats((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
+
+  /**
+   * すべて開く / すべて閉じる（任意の補助）
+   */
+  function setAllCategories(open: boolean) {
+    const next: Record<string, boolean> = {};
+    for (const [k, catMap] of grouped.entries()) {
+      for (const c of catMap.keys()) {
+        next[catKey(k, c)] = open;
+      }
+    }
+    setOpenCats(next);
+  }
+
   async function addItem() {
     if (saving) return;
 
@@ -167,7 +198,6 @@ export default function InventoryPage() {
         expires_on: kind === "食材" ? (expires || null) : null,
       });
 
-      // ★保険：作成後に id が無いなら反映しない
       const id = safeId((item as any).id);
       if (!id) {
         setError("追加は成功しましたが、返却データに id がありません（APIの返却項目を確認してください）");
@@ -176,6 +206,10 @@ export default function InventoryPage() {
       }
 
       setItems((prev) => [item, ...prev]);
+
+      // ★追加したカテゴリは開いておく（使い勝手）
+      const cat = (category.trim() || "未分類");
+      setOpenCats((prev) => ({ ...prev, [catKey(kind, cat)]: true }));
 
       // 入力欄クリア（スマホ向け）
       setName("");
@@ -195,6 +229,11 @@ export default function InventoryPage() {
       setError("id が取得できません（APIが id を返しているか確認してください）");
       return;
     }
+
+    // ★編集対象が入っているカテゴリは開いておく
+    const k = it.kind ?? "食材";
+    const c = (it.category ?? "未分類").trim() || "未分類";
+    setOpenCats((prev) => ({ ...prev, [catKey(k, c)]: true }));
 
     setEditingId(id);
     setEditDraft({
@@ -244,7 +283,6 @@ export default function InventoryPage() {
         expires_on: editDraft.kind === "食材" ? (editDraft.expires || null) : null,
       });
 
-      // ★保険：返却に id が無いと map が壊れるのでフォールバック
       const updatedId = safeId((updated as any).id) ?? id;
 
       setItems((prev) => prev.map((x) => (x.id === updatedId ? updated : x)));
@@ -558,6 +596,41 @@ export default function InventoryPage() {
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ fontSize: 16, fontWeight: 900 }}>一覧</div>
+
+          <button
+            type="button"
+            onClick={() => setAllCategories(true)}
+            disabled={loading || items.length === 0}
+            style={{
+              borderRadius: 999,
+              padding: "8px 10px",
+              border: "1px solid rgba(0,0,0,0.08)",
+              background: "rgba(255,255,255,0.85)",
+              fontSize: 13,
+              cursor: loading || items.length === 0 ? "not-allowed" : "pointer",
+            }}
+            title="すべて開く"
+          >
+            ▾ 全部開く
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setAllCategories(false)}
+            disabled={loading || items.length === 0}
+            style={{
+              borderRadius: 999,
+              padding: "8px 10px",
+              border: "1px solid rgba(0,0,0,0.08)",
+              background: "rgba(255,255,255,0.85)",
+              fontSize: 13,
+              cursor: loading || items.length === 0 ? "not-allowed" : "pointer",
+            }}
+            title="すべて閉じる"
+          >
+            ▸ 全部閉じる
+          </button>
+
           <button
             type="button"
             onClick={fetchAll}
@@ -586,318 +659,366 @@ export default function InventoryPage() {
               <div key={k} style={{ display: "grid", gap: 10 }}>
                 <div style={{ fontSize: 15, fontWeight: 900 }}>{k}</div>
 
-                {Array.from(catMap.entries()).map(([c, list]) => (
-                  <div
-                    key={`${k}:${c}`}
-                    style={{
-                      borderRadius: 14,
-                      padding: 12,
-                      border: "1px solid rgba(0,0,0,0.08)",
-                      background: "rgba(255,255,255,0.7)",
-                    }}
-                  >
-                    <div style={{ fontSize: 13, fontWeight: 900, color: "#345" }}>{c}</div>
+                {Array.from(catMap.entries()).map(([c, list]) => {
+                  const key = catKey(k, c);
+                  const open = !!openCats[key]; // ★デフォルト false（閉じる）
+                  const count = list.length;
 
-                    <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
-                      {list.map((it) => {
-                        const id = safeId((it as any).id); // ★ここで確定させる
-                        const editing = !!id && editingId === id;
-                        const soon = it.kind === "食材" && isExpiringSoon(it.expires_on);
+                  return (
+                    <div
+                      key={key}
+                      style={{
+                        borderRadius: 14,
+                        border: "1px solid rgba(0,0,0,0.08)",
+                        background: "rgba(255,255,255,0.7)",
+                        overflow: "hidden",
+                      }}
+                    >
+                      {/* ★カテゴリ見出し（クリックで開閉） */}
+                      <button
+                        type="button"
+                        onClick={() => toggleCategory(k, c)}
+                        style={{
+                          width: "100%",
+                          textAlign: "left",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                          padding: "12px 12px",
+                          background: "transparent",
+                          border: "none",
+                          cursor: "pointer",
+                        }}
+                        aria-expanded={open}
+                      >
+                        <span style={{ fontSize: 13, fontWeight: 900, color: "#345" }}>
+                          {open ? "▾" : "▸"} {c}
+                        </span>
+                        <span
+                          style={{
+                            marginLeft: "auto",
+                            fontSize: 12,
+                            padding: "3px 8px",
+                            borderRadius: 999,
+                            border: "1px solid rgba(0,0,0,0.08)",
+                            background: "rgba(0,0,0,0.03)",
+                            color: "#345",
+                          }}
+                        >
+                          {count}
+                        </span>
+                      </button>
 
-                        return (
-                          <div
-                            key={id ?? `${it.name}-${it.created_at}`} // ★idが無い時も落ちない
-                            style={{
-                              display: "grid",
-                              gridTemplateColumns: "1fr auto",
-                              gap: 10,
-                              alignItems: "center",
-                              padding: "10px 10px",
-                              borderRadius: 12,
-                              border: "1px solid rgba(0,0,0,0.08)",
-                              background: soon ? "rgba(255, 245, 220, 0.9)" : "white",
-                              opacity: id ? 1 : 0.7,
-                            }}
-                          >
-                            <div style={{ minWidth: 0 }}>
-                              {editing ? (
-                                <div style={{ display: "grid", gap: 8 }}>
-                                  {/* --- 編集UI（元のまま） --- */}
-                                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                                    <select
-                                      value={editDraft?.kind ?? "食材"}
-                                      onChange={(e) =>
-                                        setEditDraft((p) =>
-                                          p
-                                            ? {
-                                                ...p,
-                                                kind: e.target.value as InventoryKind,
-                                                expires: e.target.value === "食材" ? p.expires : "",
-                                              }
-                                            : p
-                                        )
-                                      }
-                                      style={{
-                                        borderRadius: 10,
-                                        padding: "8px 10px",
-                                        border: "1px solid rgba(0,0,0,0.12)",
-                                        background: "white",
-                                      }}
-                                    >
-                                      <option value="食材">食材</option>
-                                      <option value="日用品">日用品</option>
-                                    </select>
+                      {/* ★折りたたみ中は中身を出さない */}
+                      {open && (
+                        <div style={{ padding: "0 12px 12px 12px" }}>
+                          <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+                            {list.map((it) => {
+                              const id = safeId((it as any).id);
+                              const editing = !!id && editingId === id;
+                              const soon = it.kind === "食材" && isExpiringSoon(it.expires_on);
 
-                                    <input
-                                      value={editDraft?.category ?? ""}
-                                      onChange={(e) =>
-                                        setEditDraft((p) => (p ? { ...p, category: e.target.value } : p))
-                                      }
-                                      placeholder="カテゴリ"
-                                      style={{
-                                        borderRadius: 10,
-                                        padding: "8px 10px",
-                                        border: "1px solid rgba(0,0,0,0.12)",
-                                        background: "white",
-                                        width: 120,
-                                      }}
-                                    />
-                                  </div>
+                              return (
+                                <div
+                                  key={id ?? `${it.name}-${it.created_at}`}
+                                  style={{
+                                    display: "grid",
+                                    gridTemplateColumns: "1fr auto",
+                                    gap: 10,
+                                    alignItems: "center",
+                                    padding: "10px 10px",
+                                    borderRadius: 12,
+                                    border: "1px solid rgba(0,0,0,0.08)",
+                                    background: soon ? "rgba(255, 245, 220, 0.9)" : "white",
+                                    opacity: id ? 1 : 0.7,
+                                  }}
+                                >
+                                  <div style={{ minWidth: 0 }}>
+                                    {editing ? (
+                                      <div style={{ display: "grid", gap: 8 }}>
+                                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                                          <select
+                                            value={editDraft?.kind ?? "食材"}
+                                            onChange={(e) =>
+                                              setEditDraft((p) =>
+                                                p
+                                                  ? {
+                                                      ...p,
+                                                      kind: e.target.value as InventoryKind,
+                                                      expires: e.target.value === "食材" ? p.expires : "",
+                                                    }
+                                                  : p
+                                              )
+                                            }
+                                            style={{
+                                              borderRadius: 10,
+                                              padding: "8px 10px",
+                                              border: "1px solid rgba(0,0,0,0.12)",
+                                              background: "white",
+                                            }}
+                                          >
+                                            <option value="食材">食材</option>
+                                            <option value="日用品">日用品</option>
+                                          </select>
 
-                                  <input
-                                    value={editDraft?.name ?? ""}
-                                    onChange={(e) =>
-                                      setEditDraft((p) => (p ? { ...p, name: e.target.value } : p))
-                                    }
-                                    placeholder="品名"
-                                    style={{
-                                      borderRadius: 10,
-                                      padding: "8px 10px",
-                                      border: "1px solid rgba(0,0,0,0.12)",
-                                      background: "white",
-                                      width: "100%",
-                                    }}
-                                  />
+                                          <input
+                                            value={editDraft?.category ?? ""}
+                                            onChange={(e) =>
+                                              setEditDraft((p) => (p ? { ...p, category: e.target.value } : p))
+                                            }
+                                            placeholder="カテゴリ"
+                                            style={{
+                                              borderRadius: 10,
+                                              padding: "8px 10px",
+                                              border: "1px solid rgba(0,0,0,0.12)",
+                                              background: "white",
+                                              width: 120,
+                                            }}
+                                          />
+                                        </div>
 
-                                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                                    <input
-                                      type="number"
-                                      inputMode="numeric"
-                                      min={1}
-                                      value={editDraft?.qty ?? 1}
-                                      onChange={(e) =>
-                                        setEditDraft((p) =>
-                                          p
-                                            ? { ...p, qty: Math.max(1, Math.floor(Number(e.target.value) || 1)) }
-                                            : p
-                                        )
-                                      }
-                                      style={{
-                                        borderRadius: 10,
-                                        padding: "8px 10px",
-                                        border: "1px solid rgba(0,0,0,0.12)",
-                                        background: "white",
-                                        width: 90,
-                                      }}
-                                    />
-                                    <input
-                                      value={editDraft?.unit ?? ""}
-                                      onChange={(e) =>
-                                        setEditDraft((p) => (p ? { ...p, unit: e.target.value } : p))
-                                      }
-                                      placeholder="単位"
-                                      style={{
-                                        borderRadius: 10,
-                                        padding: "8px 10px",
-                                        border: "1px solid rgba(0,0,0,0.12)",
-                                        background: "white",
-                                        width: 90,
-                                      }}
-                                    />
+                                        <input
+                                          value={editDraft?.name ?? ""}
+                                          onChange={(e) =>
+                                            setEditDraft((p) => (p ? { ...p, name: e.target.value } : p))
+                                          }
+                                          placeholder="品名"
+                                          style={{
+                                            borderRadius: 10,
+                                            padding: "8px 10px",
+                                            border: "1px solid rgba(0,0,0,0.12)",
+                                            background: "white",
+                                            width: "100%",
+                                          }}
+                                        />
 
-                                    <input
-                                      type="date"
-                                      value={editDraft?.expires ?? ""}
-                                      onChange={(e) =>
-                                        setEditDraft((p) => (p ? { ...p, expires: e.target.value } : p))
-                                      }
-                                      disabled={(editDraft?.kind ?? "食材") !== "食材"}
-                                      style={{
-                                        borderRadius: 10,
-                                        padding: "8px 10px",
-                                        border: "1px solid rgba(0,0,0,0.12)",
-                                        background:
-                                          (editDraft?.kind ?? "食材") === "食材" ? "white" : "rgba(0,0,0,0.04)",
-                                        width: 170,
-                                      }}
-                                    />
-                                  </div>
-                                </div>
-                              ) : (
-                                <>
-                                  <div
-                                    style={{
-                                      fontWeight: 900,
-                                      fontSize: 14,
-                                      whiteSpace: "nowrap",
-                                      overflow: "hidden",
-                                      textOverflow: "ellipsis",
-                                    }}
-                                  >
-                                    {it.name}
-                                  </div>
-                                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 6 }}>
-                                    <span
-                                      style={{
-                                        fontSize: 12,
-                                        background: "rgba(0,0,0,0.04)",
-                                        border: "1px solid rgba(0,0,0,0.08)",
-                                        padding: "3px 8px",
-                                        borderRadius: 999,
-                                        color: "#345",
-                                      }}
-                                    >
-                                      {it.quantity_num}
-                                      {it.unit ?? ""}
-                                    </span>
+                                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                                          <input
+                                            type="number"
+                                            inputMode="numeric"
+                                            min={1}
+                                            value={editDraft?.qty ?? 1}
+                                            onChange={(e) =>
+                                              setEditDraft((p) =>
+                                                p
+                                                  ? {
+                                                      ...p,
+                                                      qty: Math.max(1, Math.floor(Number(e.target.value) || 1)),
+                                                    }
+                                                  : p
+                                              )
+                                            }
+                                            style={{
+                                              borderRadius: 10,
+                                              padding: "8px 10px",
+                                              border: "1px solid rgba(0,0,0,0.12)",
+                                              background: "white",
+                                              width: 90,
+                                            }}
+                                          />
+                                          <input
+                                            value={editDraft?.unit ?? ""}
+                                            onChange={(e) =>
+                                              setEditDraft((p) => (p ? { ...p, unit: e.target.value } : p))
+                                            }
+                                            placeholder="単位"
+                                            style={{
+                                              borderRadius: 10,
+                                              padding: "8px 10px",
+                                              border: "1px solid rgba(0,0,0,0.12)",
+                                              background: "white",
+                                              width: 90,
+                                            }}
+                                          />
 
-                                    {it.kind === "食材" && it.expires_on && (
-                                      <span
-                                        style={{
-                                          fontSize: 12,
-                                          background: soon ? "rgba(255, 230, 170, 0.8)" : "rgba(0,0,0,0.04)",
-                                          border: "1px solid rgba(0,0,0,0.08)",
-                                          padding: "3px 8px",
-                                          borderRadius: 999,
-                                          color: soon ? "#7a3a00" : "#345",
-                                        }}
-                                      >
-                                        ⏳ {it.expires_on}
-                                      </span>
+                                          <input
+                                            type="date"
+                                            value={editDraft?.expires ?? ""}
+                                            onChange={(e) =>
+                                              setEditDraft((p) => (p ? { ...p, expires: e.target.value } : p))
+                                            }
+                                            disabled={(editDraft?.kind ?? "食材") !== "食材"}
+                                            style={{
+                                              borderRadius: 10,
+                                              padding: "8px 10px",
+                                              border: "1px solid rgba(0,0,0,0.12)",
+                                              background:
+                                                (editDraft?.kind ?? "食材") === "食材"
+                                                  ? "white"
+                                                  : "rgba(0,0,0,0.04)",
+                                              width: 170,
+                                            }}
+                                          />
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <>
+                                        <div
+                                          style={{
+                                            fontWeight: 900,
+                                            fontSize: 14,
+                                            whiteSpace: "nowrap",
+                                            overflow: "hidden",
+                                            textOverflow: "ellipsis",
+                                          }}
+                                        >
+                                          {it.name}
+                                        </div>
+                                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 6 }}>
+                                          <span
+                                            style={{
+                                              fontSize: 12,
+                                              background: "rgba(0,0,0,0.04)",
+                                              border: "1px solid rgba(0,0,0,0.08)",
+                                              padding: "3px 8px",
+                                              borderRadius: 999,
+                                              color: "#345",
+                                            }}
+                                          >
+                                            {it.quantity_num}
+                                            {it.unit ?? ""}
+                                          </span>
+
+                                          {it.kind === "食材" && it.expires_on && (
+                                            <span
+                                              style={{
+                                                fontSize: 12,
+                                                background: soon ? "rgba(255, 230, 170, 0.8)" : "rgba(0,0,0,0.04)",
+                                                border: "1px solid rgba(0,0,0,0.08)",
+                                                padding: "3px 8px",
+                                                borderRadius: 999,
+                                                color: soon ? "#7a3a00" : "#345",
+                                              }}
+                                            >
+                                              ⏳ {it.expires_on}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </>
                                     )}
                                   </div>
-                                </>
-                              )}
-                            </div>
 
-                            {/* 右側ボタン群 */}
-                            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                              {editing ? (
-                                <>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      if (!id) {
-                                        setError("id が取得できません（APIが id を返しているか確認してください）");
-                                        return;
-                                      }
-                                      saveEdit(id);
-                                    }}
-                                    disabled={saving}
-                                    style={{
-                                      border: "1px solid rgba(0,0,0,0.08)",
-                                      background: "rgba(208,244,222,0.85)",
-                                      fontSize: 13,
-                                      fontWeight: 900,
-                                      padding: "8px 10px",
-                                      borderRadius: 999,
-                                      cursor: saving ? "not-allowed" : "pointer",
-                                    }}
-                                  >
-                                    保存
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={cancelEdit}
-                                    disabled={saving}
-                                    style={{
-                                      border: "1px solid rgba(0,0,0,0.08)",
-                                      background: "rgba(255,255,255,0.9)",
-                                      fontSize: 13,
-                                      fontWeight: 900,
-                                      padding: "8px 10px",
-                                      borderRadius: 999,
-                                      cursor: saving ? "not-allowed" : "pointer",
-                                    }}
-                                  >
-                                    キャンセル
-                                  </button>
-                                </>
-                              ) : (
-                                <>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      if (!id) {
-                                        setError("id が取得できません（APIが id を返しているか確認してください）");
-                                        return;
-                                      }
-                                      consume(id);
-                                    }}
-                                    disabled={saving}
-                                    style={{
-                                      border: "1px solid rgba(0,0,0,0.08)",
-                                      background: "rgba(255, 255, 255, 0.9)",
-                                      fontSize: 13,
-                                      fontWeight: 900,
-                                      padding: "8px 10px",
-                                      borderRadius: 999,
-                                      cursor: saving ? "not-allowed" : "pointer",
-                                    }}
-                                    title="1つ消費（0になったら自動削除）"
-                                  >
-                                    − 消費
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => startEdit(it)}
-                                    disabled={saving || !id}
-                                    style={{
-                                      border: "1px solid rgba(0,0,0,0.08)",
-                                      background: "rgba(255,255,255,0.9)",
-                                      fontSize: 13,
-                                      fontWeight: 900,
-                                      padding: "8px 10px",
-                                      borderRadius: 999,
-                                      cursor: saving || !id ? "not-allowed" : "pointer",
-                                      opacity: id ? 1 : 0.6,
-                                    }}
-                                    title={!id ? "id が無いデータのため編集できません（APIの返却項目を確認）" : "編集"}
-                                  >
-                                    ✎
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      if (!id) {
-                                        setError("id が取得できません（APIが id を返しているか確認してください）");
-                                        return;
-                                      }
-                                      remove(id);
-                                    }}
-                                    disabled={saving}
-                                    style={{
-                                      border: "1px solid rgba(0,0,0,0.08)",
-                                      background: "rgba(255, 230, 230, 0.8)",
-                                      color: "#700",
-                                      fontSize: 13,
-                                      fontWeight: 900,
-                                      padding: "8px 10px",
-                                      borderRadius: 999,
-                                      cursor: saving ? "not-allowed" : "pointer",
-                                    }}
-                                  >
-                                    🗑
-                                  </button>
-                                </>
-                              )}
-                            </div>
+                                  {/* 右側ボタン群 */}
+                                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                    {editing ? (
+                                      <>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            if (!id) {
+                                              setError("id が取得できません（APIが id を返しているか確認してください）");
+                                              return;
+                                            }
+                                            saveEdit(id);
+                                          }}
+                                          disabled={saving}
+                                          style={{
+                                            border: "1px solid rgba(0,0,0,0.08)",
+                                            background: "rgba(208,244,222,0.85)",
+                                            fontSize: 13,
+                                            fontWeight: 900,
+                                            padding: "8px 10px",
+                                            borderRadius: 999,
+                                            cursor: saving ? "not-allowed" : "pointer",
+                                          }}
+                                        >
+                                          保存
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={cancelEdit}
+                                          disabled={saving}
+                                          style={{
+                                            border: "1px solid rgba(0,0,0,0.08)",
+                                            background: "rgba(255,255,255,0.9)",
+                                            fontSize: 13,
+                                            fontWeight: 900,
+                                            padding: "8px 10px",
+                                            borderRadius: 999,
+                                            cursor: saving ? "not-allowed" : "pointer",
+                                          }}
+                                        >
+                                          キャンセル
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            if (!id) {
+                                              setError("id が取得できません（APIが id を返しているか確認してください）");
+                                              return;
+                                            }
+                                            consume(id);
+                                          }}
+                                          disabled={saving}
+                                          style={{
+                                            border: "1px solid rgba(0,0,0,0.08)",
+                                            background: "rgba(255, 255, 255, 0.9)",
+                                            fontSize: 13,
+                                            fontWeight: 900,
+                                            padding: "8px 10px",
+                                            borderRadius: 999,
+                                            cursor: saving ? "not-allowed" : "pointer",
+                                          }}
+                                          title="1つ消費（0になったら自動削除）"
+                                        >
+                                          − 消費
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => startEdit(it)}
+                                          disabled={saving || !id}
+                                          style={{
+                                            border: "1px solid rgba(0,0,0,0.08)",
+                                            background: "rgba(255,255,255,0.9)",
+                                            fontSize: 13,
+                                            fontWeight: 900,
+                                            padding: "8px 10px",
+                                            borderRadius: 999,
+                                            cursor: saving || !id ? "not-allowed" : "pointer",
+                                            opacity: id ? 1 : 0.6,
+                                          }}
+                                          title={!id ? "id が無いデータのため編集できません（APIの返却項目を確認）" : "編集"}
+                                        >
+                                          ✎
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            if (!id) {
+                                              setError("id が取得できません（APIが id を返しているか確認してください）");
+                                              return;
+                                            }
+                                            remove(id);
+                                          }}
+                                          disabled={saving}
+                                          style={{
+                                            border: "1px solid rgba(0,0,0,0.08)",
+                                            background: "rgba(255, 230, 230, 0.8)",
+                                            color: "#700",
+                                            fontSize: 13,
+                                            fontWeight: 900,
+                                            padding: "8px 10px",
+                                            borderRadius: 999,
+                                            cursor: saving ? "not-allowed" : "pointer",
+                                          }}
+                                        >
+                                          🗑
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
-                        );
-                      })}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ))}
           </div>
@@ -906,6 +1027,7 @@ export default function InventoryPage() {
 
       {/* メモ */}
       <div style={{ marginTop: 12, color: "#555", fontSize: 12, lineHeight: 1.6 }}>
+        ・カテゴリは折りたたみ（アコーディオン）。デフォルトは閉じています。<br />
         ・「消費」は数量を 1 減らし、0 になったら自動で削除します。<br />
         ・賞味期限は食材のみ。3日以内は黄色で目立たせます。<br />
         ・「献立→買い物」連動（在庫を差し引き）は、買い物リスト画面の新ボタンから使えます。

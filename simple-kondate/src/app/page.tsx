@@ -395,89 +395,89 @@ export default function Home() {
         </a>
 
         {/* ✅ 本日の献立 */}
-{/* 本日の献立（タイル） */}
-<div
-  style={{
-    borderRadius: 16,
-    padding: 16,
-    background: "rgba(255,255,255,0.85)",
-    boxShadow: "0 10px 24px rgba(0,0,0,0.06)",
-    border: "1px solid rgba(0,0,0,0.06)",
-  }}
->
-  {/* ヘッダー */}
-  <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-    <div
-      aria-hidden
-      style={{
-        width: 46,
-        height: 46,
-        borderRadius: 16,
-        display: "grid",
-        placeItems: "center",
-        background: "linear-gradient(135deg, #ffe29a 0%, #ffd6a5 100%)",
-        fontSize: 22,
-      }}
-    >
-      🍽
-    </div>
+        {/* 本日の献立（タイル） */}
+        <div
+          style={{
+            borderRadius: 16,
+            padding: 16,
+            background: "rgba(255,255,255,0.85)",
+            boxShadow: "0 10px 24px rgba(0,0,0,0.06)",
+            border: "1px solid rgba(0,0,0,0.06)",
+          }}
+        >
+          {/* ヘッダー */}
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <div
+              aria-hidden
+              style={{
+                width: 46,
+                height: 46,
+                borderRadius: 16,
+                display: "grid",
+                placeItems: "center",
+                background: "linear-gradient(135deg, #ffe29a 0%, #ffd6a5 100%)",
+                fontSize: 22,
+              }}
+            >
+              🍽
+            </div>
 
-    <div style={{ flex: 1 }}>
-      <div style={{ fontSize: 16, fontWeight: 900 }}>本日の献立</div>
-      <div style={{ color: "#555", fontSize: 13, marginTop: 4 }}>
-        今日の朝・昼・夜・弁当
-      </div>
-    </div>
-  </div>
-
-  {/* 中身 */}
-  <div style={{ marginTop: 12 }}>
-    {loadingToday && (
-      <div style={{ color: "#777", fontSize: 14 }}>読み込み中…</div>
-    )}
-
-    {!loadingToday && todayKondates.length === 0 && (
-      <div style={{ color: "#777", fontSize: 14 }}>
-        今日の献立はまだ登録されていません
-      </div>
-    )}
-
-    {!loadingToday &&
-      (["朝", "昼", "夜", "弁当"] as const).map((cat) => (
-        <div key={cat} style={{ marginBottom: 8 }}>
-          <div
-            style={{
-              fontSize: 13,
-              fontWeight: 600,
-              color: "#555",
-              marginBottom: 4,
-            }}
-          >
-            {cat}
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 16, fontWeight: 900 }}>本日の献立</div>
+              <div style={{ color: "#555", fontSize: 13, marginTop: 4 }}>
+                今日の朝・昼・夜・弁当
+              </div>
+            </div>
           </div>
 
-          {byCategory[cat].length === 0 ? (
-            <div style={{ color: "#aaa", fontSize: 13 }}>—</div>
-          ) : (
-            byCategory[cat].map((k) => (
-              <div
-                key={k.id}
-                style={{
-                  padding: "6px 10px",
-                  borderRadius: 8,
-                  background: "#f5f5f5",
-                  fontSize: 14,
-                  marginBottom: 4,
-                }}
-              >
-                {k.title}
+          {/* 中身 */}
+          <div style={{ marginTop: 12 }}>
+            {loadingToday && (
+              <div style={{ color: "#777", fontSize: 14 }}>読み込み中…</div>
+            )}
+
+            {!loadingToday && todayKondates.length === 0 && (
+              <div style={{ color: "#777", fontSize: 14 }}>
+                今日の献立はまだ登録されていません
               </div>
-            ))
-          )}
+            )}
+
+            {!loadingToday &&
+              (["朝", "昼", "夜", "弁当"] as const).map((cat) => (
+                <div key={cat} style={{ marginBottom: 8 }}>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: "#555",
+                      marginBottom: 4,
+                    }}
+                  >
+                    {cat}
+                  </div>
+
+                  {byCategory[cat].length === 0 ? (
+                    <div style={{ color: "#aaa", fontSize: 13 }}>—</div>
+                  ) : (
+                    byCategory[cat].map((k) => (
+                      <div
+                        key={k.id}
+                        style={{
+                          padding: "6px 10px",
+                          borderRadius: 8,
+                          background: "#f5f5f5",
+                          fontSize: 14,
+                          marginBottom: 4,
+                        }}
+                      >
+                        {k.title}
+                      </div>
+                    ))
+                  )}
+                </div>
+              ))}
+          </div>
         </div>
-      ))}
-  </div>
-</div>
 
 
         {/* 将来の拡張用 */}
