@@ -60,6 +60,7 @@ export default function ShoppingPage() {
 
   // 自動作成
   const [loadingCreate, setLoadingCreate] = useState(false);
+  const [loadingCreateMinusInv, setLoadingCreateMinusInv] = useState(false);
 
   // ★手動作成
   const [manualTitle, setManualTitle] = useState("");
@@ -126,6 +127,36 @@ export default function ShoppingPage() {
       setError("通信エラーが発生しました");
     } finally {
       setLoadingCreate(false);
+    }
+  }
+
+  // ★在庫を差し引いて作成（不足分だけ）
+  async function handleCreateFromThisWeekMinusInventory() {
+    setLoadingCreateMinusInv(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/shopping_lists", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          start_date: thisWeekStart,
+          end_date: thisWeekEnd,
+          mode: "kondates_minus_inventory",
+        }),
+      });
+
+      const json = (await res.json().catch(() => null)) as CreateResult | null;
+      if (!res.ok) {
+        setError(json?.message || `作成に失敗しました（HTTP ${res.status}）`);
+        return;
+      }
+
+      await fetchLists();
+    } catch {
+      setError("通信エラーが発生しました");
+    } finally {
+      setLoadingCreateMinusInv(false);
     }
   }
 
@@ -276,6 +307,27 @@ export default function ShoppingPage() {
           }}
         >
           {loadingCreate ? "作成中..." : "🧺 今週の買い物リストを作る"}
+        </button>
+
+        <button
+          type="button"
+          onClick={handleCreateFromThisWeekMinusInventory}
+          disabled={loadingCreateMinusInv}
+          style={{
+            marginTop: 10,
+            width: "100%",
+            border: "1px solid rgba(0,0,0,0.08)",
+            borderRadius: 14,
+            padding: "12px 14px",
+            fontWeight: 900,
+            fontSize: 15,
+            background: loadingCreateMinusInv ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.9)",
+            color: "#123",
+            boxShadow: "0 10px 18px rgba(0,0,0,0.06)",
+            cursor: loadingCreateMinusInv ? "not-allowed" : "pointer",
+          }}
+        >
+          {loadingCreateMinusInv ? "作成中..." : "🧊 在庫を差し引いて不足分だけ作る"}
         </button>
       </section>
 

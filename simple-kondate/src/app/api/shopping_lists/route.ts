@@ -12,7 +12,7 @@ type CreateBody = {
   end_date?: string; // YYYY-MM-DD
   family_id?: string | null; // 将来用（今は省略OK）
   title?: string | null; // 任意
-  mode?: "kondates" | "manual"; // ★追加：手動 or 献立から
+  mode?: "kondates" | "manual" | "kondates_minus_inventory"; // ★在庫差し引き追加
 };
 
 type ApiKondateRow = {
@@ -71,7 +71,7 @@ export async function POST(req: Request) {
 
   const family_id = body?.family_id ?? null;
   const title = body?.title ?? null;
-  const mode: "kondates" | "manual" = body?.mode ?? "kondates";
+  const mode: "kondates" | "manual" | "kondates_minus_inventory" = body?.mode ?? "kondates";
 
   // 1) リスト本体を作成（共通）
   const { data: listRow, error: lErr } = await supabase
@@ -114,9 +114,64 @@ export async function POST(req: Request) {
     for (const ing of list) allIngredients.push(ing);
   }
 
+  // 在庫差し引きモードなら、材料を「回数」として数え、在庫の数量と差し引く
+  // ※分量(amount)は文字列なので、まずは最小運用（個数カウント）で。
+  if (mode === "kondates_minus_inventory") {
+    // 食材在庫だけ見る（kind='食材'）
+    const { data: invRows, error: iErr } = await supabase
+      .from("inventory_items")
+      .select("name,quantity_num,kind")
+      .eq("kind", "食材");
+
+    if (iErr) return NextResponse.json({ message: iErr.message }, { status: 500 });
+
+    const invMap = new Map<string, number>();
+    for (const r of (invRows ?? []) as { name: string; quantity_num: number; kind: string }[]) {
+      const n = (r?.name ?? "").trim();
+      if (!n) continue;
+      invMap.set(n, Math.max(0, Number(r.quantity_num ?? 0) || 0));
+    }
+
+    const need = new Map<string, number>();
+    for (const ing of allIngredients) {
+      const n = (ing.name ?? "").trim();
+      if (!n) continue;
+      need.set(n, (need.get(n) ?? 0) + 1);
+    }
+
+    const items = [] as { name: string; amount: string | null; checked: boolean; sort_order: number }[];
+    let idx = 0;
+    for (const [n, cnt] of need.entries()) {
+      const have = invMap.get(n) ?? 0;
+      const missing = Math.max(0, cnt - have);
+      if (missing <= 0) continue;
+      items.push({ name: n, amount: String(missing), checked: false, sort_order: idx++ });
+    }
+
+    // 4) items を一括 insert（0件ならスキップ）
+    if (items.length) {
+      const payload = items.map((it) => ({
+        shopping_list_id: listRow.id,
+        name: it.name,
+        amount: it.amount,
+        checked: it.checked,
+        sort_order: it.sort_order,
+      }));
+
+      const { error: insErr } = await supabase.from("shopping_items").insert(payload);
+      if (insErr) return NextResponse.json({ message: insErr.message }, { status: 500 });
+    }
+
+    return NextResponse.json(
+      { shopping_list: listRow, items_count: items.length },
+      { status: 200 }
+    );
+  }
+
+  // 4) items を作る（通常：献立の材料をそのまま集計）
   const items = buildShoppingItemsFromIngredients(allIngredients);
 
-  // 4) items を一括 insert（0件ならスキップ）
+  // 5) items を一括 insert（0件ならスキップ）
   if (items.length) {
     const payload = items.map((it) => ({
       shopping_list_id: listRow.id,

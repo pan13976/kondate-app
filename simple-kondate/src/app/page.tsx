@@ -199,6 +199,74 @@ export default function Home() {
           </div>
         </a>
 
+        {/* ★ 在庫（追加） */}
+        <a
+          href="/inventory"
+          style={{
+            textDecoration: "none",
+            color: "inherit",
+            borderRadius: 16,
+            padding: 16,
+            background: "rgba(255,255,255,0.85)",
+            boxShadow: "0 10px 24px rgba(0,0,0,0.06)",
+            border: "1px solid rgba(0,0,0,0.06)",
+            display: "block",
+          }}
+        >
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <div
+              aria-hidden
+              style={{
+                width: 46,
+                height: 46,
+                borderRadius: 16,
+                display: "grid",
+                placeItems: "center",
+                background: "linear-gradient(135deg, #d0f4de 0%, #bde0fe 100%)",
+                fontSize: 22,
+              }}
+            >
+              🧊
+            </div>
+
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 16, fontWeight: 900 }}>在庫</div>
+              <div style={{ color: "#555", fontSize: 13, marginTop: 4 }}>
+                食材・日用品をカテゴリ別に記録
+              </div>
+            </div>
+
+            <div aria-hidden style={{ color: "#777", fontSize: 18 }}>
+              →
+            </div>
+          </div>
+
+          <div
+            style={{
+              marginTop: 12,
+              display: "flex",
+              gap: 8,
+              flexWrap: "wrap",
+            }}
+          >
+            {["消費ボタン", "賞味期限", "不足分だけ買う"].map((t) => (
+              <span
+                key={t}
+                style={{
+                  fontSize: 12,
+                  color: "#345",
+                  background: "rgba(208,244,222,0.55)",
+                  padding: "4px 8px",
+                  borderRadius: 999,
+                  border: "1px solid rgba(0,0,0,0.06)",
+                }}
+              >
+                {t}
+              </span>
+            ))}
+          </div>
+        </a>
+
         {/* ★ 買い物リスト（追加） */}
         <a
           href="/shopping"
