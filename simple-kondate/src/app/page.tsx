@@ -1,4 +1,63 @@
+// src/app/page.tsx
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { apiFetchKondatesByRange } from "../lib/kondates/Api";
+import type { KondateRow, Category } from "../types/kondate";
+
+/**
+ * Date -> "YYYY-MM-DD"
+ * 献立テーブルの meal_date（yyyy-mm-dd）と合わせるための文字列化
+ */
+function toYmd(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export default function Home() {
+  // ✅ Hooksは必ずコンポーネント内
+  const [todayKondates, setTodayKondates] = useState<KondateRow[]>([]);
+  const [loadingToday, setLoadingToday] = useState(false);
+
+  /**
+   * 本日の献立を取得
+   * - apiFetchKondatesByRange(today, today) で今日だけを取得
+   */
+  useEffect(() => {
+    const fetchToday = async () => {
+      try {
+        setLoadingToday(true);
+        const today = toYmd(new Date());
+        const rows = await apiFetchKondatesByRange(today, today);
+        setTodayKondates(rows);
+      } finally {
+        setLoadingToday(false);
+      }
+    };
+
+    fetchToday();
+  }, []);
+
+  /**
+   * 表示用：カテゴリ（朝/昼/夜/弁当）ごとにまとめる
+   */
+  const byCategory = useMemo(() => {
+    const map: Record<Category, KondateRow[]> = {
+      朝: [],
+      昼: [],
+      夜: [],
+      弁当: [],
+    };
+
+    for (const k of todayKondates) {
+      map[k.category].push(k);
+    }
+    return map;
+  }, [todayKondates]);
+
+  // 表示用の日付（日本語）
   const today = new Date();
   const ymd = today.toLocaleDateString("ja-JP", {
     year: "numeric",
@@ -199,7 +258,7 @@ export default function Home() {
           </div>
         </a>
 
-        {/* ★ 在庫（追加） */}
+        {/* 在庫 */}
         <a
           href="/inventory"
           style={{
@@ -267,7 +326,7 @@ export default function Home() {
           </div>
         </a>
 
-        {/* ★ 買い物リスト（追加） */}
+        {/* 買い物リスト */}
         <a
           href="/shopping"
           style={{
@@ -298,9 +357,7 @@ export default function Home() {
             </div>
 
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 16, fontWeight: 900 }}>
-                買い物リスト
-              </div>
+              <div style={{ fontSize: 16, fontWeight: 900 }}>買い物リスト</div>
               <div style={{ color: "#555", fontSize: 13, marginTop: 4 }}>
                 献立から材料を自動集計
               </div>
@@ -336,6 +393,92 @@ export default function Home() {
             ))}
           </div>
         </a>
+
+        {/* ✅ 本日の献立 */}
+{/* 本日の献立（タイル） */}
+<div
+  style={{
+    borderRadius: 16,
+    padding: 16,
+    background: "rgba(255,255,255,0.85)",
+    boxShadow: "0 10px 24px rgba(0,0,0,0.06)",
+    border: "1px solid rgba(0,0,0,0.06)",
+  }}
+>
+  {/* ヘッダー */}
+  <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+    <div
+      aria-hidden
+      style={{
+        width: 46,
+        height: 46,
+        borderRadius: 16,
+        display: "grid",
+        placeItems: "center",
+        background: "linear-gradient(135deg, #ffe29a 0%, #ffd6a5 100%)",
+        fontSize: 22,
+      }}
+    >
+      🍽
+    </div>
+
+    <div style={{ flex: 1 }}>
+      <div style={{ fontSize: 16, fontWeight: 900 }}>本日の献立</div>
+      <div style={{ color: "#555", fontSize: 13, marginTop: 4 }}>
+        今日の朝・昼・夜・弁当
+      </div>
+    </div>
+  </div>
+
+  {/* 中身 */}
+  <div style={{ marginTop: 12 }}>
+    {loadingToday && (
+      <div style={{ color: "#777", fontSize: 14 }}>読み込み中…</div>
+    )}
+
+    {!loadingToday && todayKondates.length === 0 && (
+      <div style={{ color: "#777", fontSize: 14 }}>
+        今日の献立はまだ登録されていません
+      </div>
+    )}
+
+    {!loadingToday &&
+      (["朝", "昼", "夜", "弁当"] as const).map((cat) => (
+        <div key={cat} style={{ marginBottom: 8 }}>
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 600,
+              color: "#555",
+              marginBottom: 4,
+            }}
+          >
+            {cat}
+          </div>
+
+          {byCategory[cat].length === 0 ? (
+            <div style={{ color: "#aaa", fontSize: 13 }}>—</div>
+          ) : (
+            byCategory[cat].map((k) => (
+              <div
+                key={k.id}
+                style={{
+                  padding: "6px 10px",
+                  borderRadius: 8,
+                  background: "#f5f5f5",
+                  fontSize: 14,
+                  marginBottom: 4,
+                }}
+              >
+                {k.title}
+              </div>
+            ))
+          )}
+        </div>
+      ))}
+  </div>
+</div>
+
 
         {/* 将来の拡張用 */}
         <div
