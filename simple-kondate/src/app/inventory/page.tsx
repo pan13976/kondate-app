@@ -114,8 +114,8 @@ export default function InventoryPage() {
   // ★カテゴリの開閉状態（デフォルトは閉じる）
   const [openCats, setOpenCats] = useState<Record<string, boolean>>({});
 
-  // datalist 用（候補から選べる + 自由入力）
-  const cats = useMemo(() => (kind === "食材" ? FOOD_CATS : DAILY_CATS), [kind]);
+  // （候補配列自体はUIで直接使ってないが、将来拡張用に残してOK）
+  const _cats = useMemo(() => (kind === "食材" ? FOOD_CATS : DAILY_CATS), [kind]);
 
   async function fetchAll() {
     setLoading(true);
@@ -173,7 +173,7 @@ export default function InventoryPage() {
   }
 
   /**
-   * すべて開く / すべて閉じる（任意の補助）
+   * すべて開く / すべて閉じる
    */
   function setAllCategories(open: boolean) {
     const next: Record<string, boolean> = {};
@@ -222,13 +222,13 @@ export default function InventoryPage() {
 
       setItems((prev) => [item, ...prev]);
 
-      // ★追加したカテゴリは開いておく（使い勝手）
-      const cat = (category.trim() || "未分類");
+      // ★追加したカテゴリは開いておく
+      const cat = category.trim() || "未分類";
       setOpenCats((prev) => ({ ...prev, [catKey(kind, cat)]: true }));
 
-      // 入力欄クリア（スマホ向け）
+      // 入力欄クリア
       setName("");
-      setQtyText("1"); // ★ここで初期値は維持（ただし入力は消せる）
+      setQtyText("1");
       setUnit(kind === "食材" ? "個" : "個");
       setExpires("");
     } catch (e) {
@@ -255,7 +255,7 @@ export default function InventoryPage() {
       kind: it.kind,
       category: (it.category ?? "").trim() || (it.kind === "食材" ? "野菜" : "消耗品"),
       name: it.name,
-      qtyText: String(it.quantity_num ?? 1), // ★文字列へ
+      qtyText: String(it.quantity_num ?? 1),
       unit: (it.unit ?? "").trim() || "個",
       expires: it.expires_on ?? "",
     });
@@ -439,6 +439,18 @@ export default function InventoryPage() {
         </div>
       )}
 
+      {/* datalist はページ内に「常に両方」定義しておく（どの入力でも使える） */}
+      <datalist id="foodcats">
+        {FOOD_CATS.map((c) => (
+          <option key={c} value={c} />
+        ))}
+      </datalist>
+      <datalist id="dailycats">
+        {DAILY_CATS.map((c) => (
+          <option key={c} value={c} />
+        ))}
+      </datalist>
+
       {/* 追加フォーム */}
       <section
         style={{
@@ -491,17 +503,6 @@ export default function InventoryPage() {
                 }}
               />
             </label>
-
-            <datalist id="foodcats">
-              {FOOD_CATS.map((c) => (
-                <option key={c} value={c} />
-              ))}
-            </datalist>
-            <datalist id="dailycats">
-              {DAILY_CATS.map((c) => (
-                <option key={c} value={c} />
-              ))}
-            </datalist>
           </div>
 
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -531,14 +532,12 @@ export default function InventoryPage() {
                 inputMode="numeric"
                 value={qtyText}
                 onChange={(e) => {
-                  // 数字以外は入れない（空は許す）
                   const v = e.target.value;
                   if (v === "") return setQtyText("");
                   if (!/^\d+$/.test(v)) return;
                   setQtyText(v);
                 }}
                 onBlur={() => {
-                  // 何も入ってないままフォーカス外れたら 1 に戻す（任意）
                   if (qtyText.trim() === "") setQtyText("1");
                 }}
                 style={{
@@ -788,7 +787,7 @@ export default function InventoryPage() {
                                             <option value="日用品">日用品</option>
                                           </select>
 
-                                          {/* ★編集カテゴリも自由入力 + 候補 */}
+                                          {/* ★ここが修正点：editDraft.kind を見て候補を切り替える */}
                                           <input
                                             list={(editDraft?.kind ?? "食材") === "食材" ? "foodcats" : "dailycats"}
                                             value={editDraft?.category ?? ""}
@@ -822,7 +821,6 @@ export default function InventoryPage() {
                                         />
 
                                         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                                          {/* ★編集数量：文字列で持つので空にできる */}
                                           <input
                                             type="text"
                                             inputMode="numeric"
@@ -837,8 +835,9 @@ export default function InventoryPage() {
                                               setEditDraft((p) => (p ? { ...p, qtyText: v } : p));
                                             }}
                                             onBlur={() => {
-                                              // 空のままなら 1 に戻す（任意）
-                                              setEditDraft((p) => (p && p.qtyText.trim() === "" ? { ...p, qtyText: "1" } : p));
+                                              setEditDraft((p) =>
+                                                p && p.qtyText.trim() === "" ? { ...p, qtyText: "1" } : p
+                                              );
                                             }}
                                             style={{
                                               borderRadius: 10,
@@ -931,7 +930,6 @@ export default function InventoryPage() {
                                     )}
                                   </div>
 
-                                  {/* 右側ボタン群 */}
                                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                                     {editing ? (
                                       <>
@@ -1058,12 +1056,6 @@ export default function InventoryPage() {
         )}
       </section>
 
-      {/* メモ */}
-      <div style={{ marginTop: 12, color: "#555", fontSize: 12, lineHeight: 1.6 }}>
-        ・数量は「入力中の空」を許すため、文字列で保持しています（1を消して3が入力できます）。<br />
-        ・カテゴリは自由入力 + 候補リスト（datalist）で選択できます。<br />
-        ・カテゴリは折りたたみ（アコーディオン）。デフォルトは閉じています。
-      </div>
     </main>
   );
 }
