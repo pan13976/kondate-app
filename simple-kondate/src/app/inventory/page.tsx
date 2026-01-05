@@ -55,7 +55,6 @@ function isExpiringSoon(expires_on: string | null) {
 
 /**
  * ★重要：id が undefined/空のときに API を叩かない
- * - invalid input syntax for type uuid: "undefined" 対策
  */
 function safeId(id: unknown): string | null {
   if (typeof id !== "string") return null;
@@ -71,6 +70,20 @@ function catKey(kind: string, category: string) {
   return `${kind}:::${category}`;
 }
 
+/**
+ * 数量の文字列 -> int に変換して検証
+ * - 入力中は "" を許す
+ * - 確定時に 1以上の整数かチェック
+ */
+function parsePositiveInt(text: string): { ok: true; value: number } | { ok: false; message: string } {
+  const t = text.trim();
+  if (!t) return { ok: false, message: "数量を入力してください" };
+  if (!/^\d+$/.test(t)) return { ok: false, message: "数量は数字（整数）で入力してください" };
+  const n = Number(t);
+  if (!Number.isFinite(n) || n <= 0) return { ok: false, message: "数量は 1 以上にしてください" };
+  return { ok: true, value: Math.floor(n) };
+}
+
 export default function InventoryPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -82,7 +95,8 @@ export default function InventoryPage() {
   const [kind, setKind] = useState<InventoryKind>("食材");
   const [category, setCategory] = useState<string>("野菜");
   const [name, setName] = useState("");
-  const [qty, setQty] = useState(1);
+  // ★数量は「文字列」で持つ（空文字を許すため）
+  const [qtyText, setQtyText] = useState<string>("1");
   const [unit, setUnit] = useState<string>("個");
   const [expires, setExpires] = useState<string>("");
 
@@ -92,7 +106,7 @@ export default function InventoryPage() {
     kind: InventoryKind;
     category: string;
     name: string;
-    qty: number;
+    qtyText: string; // ★文字列で持つ
     unit: string;
     expires: string;
   } | null>(null);
@@ -100,6 +114,7 @@ export default function InventoryPage() {
   // ★カテゴリの開閉状態（デフォルトは閉じる）
   const [openCats, setOpenCats] = useState<Record<string, boolean>>({});
 
+  // datalist 用（候補から選べる + 自由入力）
   const cats = useMemo(() => (kind === "食材" ? FOOD_CATS : DAILY_CATS), [kind]);
 
   async function fetchAll() {
@@ -146,7 +161,6 @@ export default function InventoryPage() {
       m.get(c)!.push(it);
     }
 
-    // それぞれ created_at desc なのでカテゴリ内はそのまま
     return map;
   }, [items]);
 
@@ -179,9 +193,10 @@ export default function InventoryPage() {
       setError("品名を入力してください");
       return;
     }
-    const q = Math.max(0, Math.floor(Number(qty) || 0));
-    if (q <= 0) {
-      setError("数量は 1 以上にしてください");
+
+    const parsed = parsePositiveInt(qtyText);
+    if (!parsed.ok) {
+      setError(parsed.message);
       return;
     }
 
@@ -193,7 +208,7 @@ export default function InventoryPage() {
         kind,
         category: category.trim() || null,
         name: n,
-        quantity_num: q,
+        quantity_num: parsed.value,
         unit: unit.trim() || null,
         expires_on: kind === "食材" ? (expires || null) : null,
       });
@@ -213,7 +228,7 @@ export default function InventoryPage() {
 
       // 入力欄クリア（スマホ向け）
       setName("");
-      setQty(1);
+      setQtyText("1"); // ★ここで初期値は維持（ただし入力は消せる）
       setUnit(kind === "食材" ? "個" : "個");
       setExpires("");
     } catch (e) {
@@ -240,7 +255,7 @@ export default function InventoryPage() {
       kind: it.kind,
       category: (it.category ?? "").trim() || (it.kind === "食材" ? "野菜" : "消耗品"),
       name: it.name,
-      qty: it.quantity_num,
+      qtyText: String(it.quantity_num ?? 1), // ★文字列へ
       unit: (it.unit ?? "").trim() || "個",
       expires: it.expires_on ?? "",
     });
@@ -265,9 +280,10 @@ export default function InventoryPage() {
       setError("品名を入力してください");
       return;
     }
-    const q = Math.max(0, Math.floor(Number(editDraft.qty) || 0));
-    if (q <= 0) {
-      setError("数量は 1 以上にしてください（0にしたいなら削除）");
+
+    const parsed = parsePositiveInt(editDraft.qtyText);
+    if (!parsed.ok) {
+      setError(parsed.message);
       return;
     }
 
@@ -278,13 +294,12 @@ export default function InventoryPage() {
         kind: editDraft.kind,
         category: editDraft.category.trim() || null,
         name: n,
-        quantity_num: q,
+        quantity_num: parsed.value,
         unit: editDraft.unit.trim() || null,
         expires_on: editDraft.kind === "食材" ? (editDraft.expires || null) : null,
       });
 
       const updatedId = safeId((updated as any).id) ?? id;
-
       setItems((prev) => prev.map((x) => (x.id === updatedId ? updated : x)));
       cancelEdit();
     } catch (e) {
@@ -457,19 +472,22 @@ export default function InventoryPage() {
               </select>
             </label>
 
+            {/* ★カテゴリ：自由入力 + 候補リスト（datalist） */}
             <label style={{ fontSize: 13, color: "#345" }}>
-              カテゴリ
+              カテゴリ（自由入力 or 候補から選択）
               <input
                 list={kind === "食材" ? "foodcats" : "dailycats"}
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
+                placeholder={kind === "食材" ? "例：野菜" : "例：消耗品"}
                 style={{
-                  marginLeft: 8,
+                  display: "block",
+                  marginTop: 6,
                   borderRadius: 10,
                   padding: "8px 10px",
                   border: "1px solid rgba(0,0,0,0.12)",
                   background: "white",
-                  width: 140,
+                  width: 220,
                 }}
               />
             </label>
@@ -505,14 +523,24 @@ export default function InventoryPage() {
               />
             </label>
 
+            {/* ★数量：文字列 state で持つので「1を消して3」ができる */}
             <label style={{ width: 120, fontSize: 13, color: "#345" }}>
               数量
               <input
-                type="number"
+                type="text"
                 inputMode="numeric"
-                min={1}
-                value={qty}
-                onChange={(e) => setQty(Math.max(1, Math.floor(Number(e.target.value) || 1)))}
+                value={qtyText}
+                onChange={(e) => {
+                  // 数字以外は入れない（空は許す）
+                  const v = e.target.value;
+                  if (v === "") return setQtyText("");
+                  if (!/^\d+$/.test(v)) return;
+                  setQtyText(v);
+                }}
+                onBlur={() => {
+                  // 何も入ってないままフォーカス外れたら 1 に戻す（任意）
+                  if (qtyText.trim() === "") setQtyText("1");
+                }}
                 style={{
                   display: "block",
                   width: "100%",
@@ -709,7 +737,6 @@ export default function InventoryPage() {
                         </span>
                       </button>
 
-                      {/* ★折りたたみ中は中身を出さない */}
                       {open && (
                         <div style={{ padding: "0 12px 12px 12px" }}>
                           <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
@@ -761,7 +788,9 @@ export default function InventoryPage() {
                                             <option value="日用品">日用品</option>
                                           </select>
 
+                                          {/* ★編集カテゴリも自由入力 + 候補 */}
                                           <input
+                                            list={(editDraft?.kind ?? "食材") === "食材" ? "foodcats" : "dailycats"}
                                             value={editDraft?.category ?? ""}
                                             onChange={(e) =>
                                               setEditDraft((p) => (p ? { ...p, category: e.target.value } : p))
@@ -772,7 +801,7 @@ export default function InventoryPage() {
                                               padding: "8px 10px",
                                               border: "1px solid rgba(0,0,0,0.12)",
                                               background: "white",
-                                              width: 120,
+                                              width: 160,
                                             }}
                                           />
                                         </div>
@@ -793,21 +822,24 @@ export default function InventoryPage() {
                                         />
 
                                         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                                          {/* ★編集数量：文字列で持つので空にできる */}
                                           <input
-                                            type="number"
+                                            type="text"
                                             inputMode="numeric"
-                                            min={1}
-                                            value={editDraft?.qty ?? 1}
-                                            onChange={(e) =>
-                                              setEditDraft((p) =>
-                                                p
-                                                  ? {
-                                                      ...p,
-                                                      qty: Math.max(1, Math.floor(Number(e.target.value) || 1)),
-                                                    }
-                                                  : p
-                                              )
-                                            }
+                                            value={editDraft?.qtyText ?? ""}
+                                            onChange={(e) => {
+                                              const v = e.target.value;
+                                              if (v === "") {
+                                                setEditDraft((p) => (p ? { ...p, qtyText: "" } : p));
+                                                return;
+                                              }
+                                              if (!/^\d+$/.test(v)) return;
+                                              setEditDraft((p) => (p ? { ...p, qtyText: v } : p));
+                                            }}
+                                            onBlur={() => {
+                                              // 空のままなら 1 に戻す（任意）
+                                              setEditDraft((p) => (p && p.qtyText.trim() === "" ? { ...p, qtyText: "1" } : p));
+                                            }}
                                             style={{
                                               borderRadius: 10,
                                               padding: "8px 10px",
@@ -816,6 +848,7 @@ export default function InventoryPage() {
                                               width: 90,
                                             }}
                                           />
+
                                           <input
                                             value={editDraft?.unit ?? ""}
                                             onChange={(e) =>
@@ -1027,10 +1060,9 @@ export default function InventoryPage() {
 
       {/* メモ */}
       <div style={{ marginTop: 12, color: "#555", fontSize: 12, lineHeight: 1.6 }}>
-        ・カテゴリは折りたたみ（アコーディオン）。デフォルトは閉じています。<br />
-        ・「消費」は数量を 1 減らし、0 になったら自動で削除します。<br />
-        ・賞味期限は食材のみ。3日以内は黄色で目立たせます。<br />
-        ・「献立→買い物」連動（在庫を差し引き）は、買い物リスト画面の新ボタンから使えます。
+        ・数量は「入力中の空」を許すため、文字列で保持しています（1を消して3が入力できます）。<br />
+        ・カテゴリは自由入力 + 候補リスト（datalist）で選択できます。<br />
+        ・カテゴリは折りたたみ（アコーディオン）。デフォルトは閉じています。
       </div>
     </main>
   );
