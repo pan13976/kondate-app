@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { apiAiCreateRecipe } from "../../../lib/recipes/aiService";
 
 const MAIN_CATEGORIES = [
   "主菜","副菜","主食","汁物","麺","サラダ","おやつ","作り置き","その他",
@@ -9,6 +10,13 @@ const MAIN_CATEGORIES = [
 type IngredientRow = { name: string; amount: string };
 
 export default function NewRecipePage() {
+  // ------------------------------
+  // AI（材料→レシピ生成→保存）
+  // ------------------------------
+  const [aiIngredientsText, setAiIngredientsText] = useState("");
+  const [aiPreference, setAiPreference] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [timeMinutes, setTimeMinutes] = useState<string>("");
@@ -24,6 +32,28 @@ export default function NewRecipePage() {
 
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  async function onAiCreateAndSave() {
+    setErrorMsg(null);
+
+    if (!aiIngredientsText.trim()) {
+      setErrorMsg("材料を入力してください（例：小松菜 1束）");
+      return;
+    }
+
+    setAiLoading(true);
+    try {
+      const created = await apiAiCreateRecipe({
+        ingredientsText: aiIngredientsText,
+        preference: aiPreference.trim() ? aiPreference : undefined,
+      });
+      window.location.href = `/recipes/${created.id}`;
+    } catch (e: any) {
+      setErrorMsg(String(e?.message ?? e));
+    } finally {
+      setAiLoading(false);
+    }
+  }
 
   const tags = useMemo(() => {
     const arr = tagsText
@@ -91,6 +121,62 @@ export default function NewRecipePage() {
       <header style={{ marginBottom: 12 }}>
         <h1 style={{ fontSize: 22, fontWeight: 900 }}>レシピ追加</h1>
       </header>
+
+      {/* ------------------------------
+          AI：材料から自動生成して保存
+         ------------------------------ */}
+      <section
+        style={{
+          padding: 12,
+          borderRadius: 14,
+          border: "1px solid rgba(0,0,0,0.08)",
+          background: "rgba(255,255,255,0.8)",
+          boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
+          marginBottom: 12,
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+          <div>
+            <div style={{ fontWeight: 900, fontSize: 16 }}>AIで材料から作成（そのまま保存）</div>
+            <div style={{ fontSize: 12, opacity: 0.8 }}>
+              例：小松菜 1束 / にんじん 1本 / 卵 2個 …（1行に1つ）
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onAiCreateAndSave}
+            disabled={aiLoading}
+            style={{
+              padding: "10px 12px",
+              borderRadius: 999,
+              border: "1px solid rgba(0,0,0,0.12)",
+              background: "rgba(255,236,179,0.9)",
+              fontWeight: 900,
+              whiteSpace: "nowrap",
+              opacity: aiLoading ? 0.7 : 1,
+            }}
+          >
+            {aiLoading ? "生成中…" : "AIで作成"}
+          </button>
+        </div>
+
+        <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
+          <textarea
+            value={aiIngredientsText}
+            onChange={(e) => setAiIngredientsText(e.target.value)}
+            rows={4}
+            placeholder={`例\n小松菜 1束\nにんじん 1/2本\n卵 2個\n豆腐`}
+            style={{ padding: 12, borderRadius: 12, border: "1px solid rgba(0,0,0,0.12)" }}
+          />
+          <input
+            value={aiPreference}
+            onChange={(e) => setAiPreference(e.target.value)}
+            placeholder="好み・条件（任意）例：15分以内/辛くない/子ども向け/和風"
+            style={{ padding: 12, borderRadius: 12, border: "1px solid rgba(0,0,0,0.12)" }}
+          />
+        </div>
+      </section>
 
       {errorMsg && (
         <div style={{ padding: 12, borderRadius: 12, background: "rgba(255,230,230,0.75)", color: "#a11", fontWeight: 800, marginBottom: 12 }}>
