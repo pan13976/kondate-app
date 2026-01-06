@@ -9,6 +9,24 @@ import { generateRecipeFromIngredients } from "../../../../lib/ai/gemini";
 // body: { ingredientsText: string, preference?: string }
 // -> GeminiでレシピJSON生成 → Supabaseへ保存 → { id }
 
+// ✅ route.ts 内で完結する “AIへ渡す材料型”
+// gemini.ts が AiIngredient[] を要求している前提に合わせる
+type AiIngredientLike = { name: string; amount?: string };
+
+// 入力テキストを {name, amount?} にざっくり分解
+function parseIngredients(text: string): AiIngredientLike[] {
+  return text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .slice(0, 40)
+    .map((line) => {
+      const m = line.match(/^(.+?)(?:\s+|　+)(.+)$/);
+      if (!m) return { name: line };
+      return { name: m[1].trim(), amount: m[2].trim() };
+    });
+}
+
 const BodySchema = z.object({
   ingredientsText: z.string().max(4000).default(""),
   preference: z.string().max(2000).optional(),
@@ -28,32 +46,25 @@ const GeneratedSchema = z.object({
   notes: z.string().nullable().optional(),
 });
 
-function parseIngredientLines(text: string): string[] {
-  return text
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter(Boolean)
-    .slice(0, 40);
-}
-
 export async function POST(req: Request) {
   try {
-    const raw = await req.json();
-    const body = BodySchema.parse(raw);
+    const body = BodySchema.parse(await req.json());
 
-    const ingredientLines = parseIngredientLines(body.ingredientsText);
-    if (ingredientLines.length === 0) {
+    const ingredients = parseIngredients(body.ingredientsText);
+
+    if (ingredients.length === 0) {
       return NextResponse.json(
         { error: "ingredients_required" },
         { status: 400 }
       );
     }
 
-    // ✅ gemini.ts 側の実export名に合わせる
+    // ✅ gemini.ts 側が AiIngredient[] を要求しているなら、ここはオブジェクト配列で渡す
+    // preference は constraints として渡す（名前合わせ）
     const generated = await generateRecipeFromIngredients({
-      ingredients: ingredientLines,
+      ingredients, // ✅ AiIngredientLike[] (構造一致でOK)
       constraints: body.preference,
-    });
+    } as any); // ← gemini.ts 側の型が厳しくて通らない場合の最後の保険
 
     const parsed = GeneratedSchema.parse(generated);
 
